@@ -12,7 +12,7 @@ public class TimeManager : BaseManager
     public float bpm = 120f;
 
     [Tooltip("Half‑window in seconds considered 'on beat'")]
-    public float onBeatWindowSec = 0.10f;
+    public float onBeatWindowSec = 0.2f;
 
     [Tooltip("Seconds of lead‑in before beats start (for a metronome or loading delay)")]
     public float startDelaySec = 0.4f;

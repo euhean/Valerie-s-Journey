@@ -9,45 +9,71 @@ public class PlayerMover2D : MonoBehaviour
 {
     public InputManager inputManager;
 
-   [Header("Movement Parameters")]
-    public float speed = GameConstants.PLAYER_SPEED;
-    public float acceleration = GameConstants.PLAYER_ACCELERATION;
-    [Tooltip("How fast we brake when no input")]
-    public float deceleration = 18f;   // try 18–24
-    [Tooltip("Stick deadzone for stop snap")]
-    public float stopDeadzone = 0.08f; // 0.06–0.1
-    
+    [Header("Movement Parameters")]
+    // All movement/deadzone tuning values are now in GameConstants
+
     private Rigidbody2D rb;
     private Vector2 velocity;
+    private bool inDeadzone;
 
-    private void Awake()
-    {
+    private void Awake() {
         rb = GetComponent<Rigidbody2D>();
+        // helps visuals stay glued to physics without jitter
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
     }
 
     private void FixedUpdate()
     {
-        Vector2 move = (inputManager != null) ? inputManager.Move : Vector2.zero;
-        Vector2 target = move * speed;
+        // 1) Read input
+        Vector2 raw = (inputManager != null) ? inputManager.Move : Vector2.zero;
+        float mag = raw.magnitude;
 
-        bool hasInput = move.sqrMagnitude >= (stopDeadzone * stopDeadzone);
+        // 2) Deadzone with hysteresis (stable center)
+        if (inDeadzone)
+            if (mag > GameConstants.PLAYER_DEADZONE_EXIT) inDeadzone = false;
+            else if (mag < GameConstants.PLAYER_DEADZONE_ENTER) inDeadzone = true;
 
-        // accelerate when there is input, decelerate hard when there isn't
-        float rate = hasInput ? (acceleration) : (deceleration);
-        velocity = Vector2.MoveTowards(velocity, target, rate * Time.fixedDeltaTime);
+        bool hasInput = !inDeadzone;
+        Vector2 moveDir = hasInput ? raw.normalized : Vector2.zero;
+        Vector2 targetVel = moveDir * GameConstants.PLAYER_SPEED;
 
-        // hard snap to zero to kill micro-drift
-        if (!hasInput && velocity.sqrMagnitude < 0.001f) velocity = Vector2.zero;
+        // 3) Accel/Brake
+        if (!hasInput) {
+            // No input: brake hard toward zero
+            velocity = Vector2.MoveTowards(
+                velocity,
+                Vector2.zero,
+                GameConstants.PLAYER_DECELERATION * Time.fixedDeltaTime
+            );
+        } else {
+            // If reversing direction, apply stronger brake before accelerating
+            float align = (velocity.sqrMagnitude > 0.0001f)
+                ? Vector2.Dot(velocity.normalized, moveDir)
+                : 1f;
+            float rate = (align < 0f)
+                ? GameConstants.PLAYER_REVERSE_BRAKE
+                : GameConstants.PLAYER_ACCELERATION;
 
-        rb.MovePosition(rb.position + velocity * Time.fixedDeltaTime);
-
-        // rotation stays the same
-        if (inputManager != null && inputManager.Aim.sqrMagnitude > GameConstants.AIM_THRESHOLD) {
-        float angle = Mathf.Atan2(inputManager.Aim.y, inputManager.Aim.x) * Mathf.Rad2Deg;
-        rb.rotation = angle + GameConstants.SPRITE_ROTATION_OFFSET;
+            velocity = Vector2.MoveTowards(
+                velocity,
+                targetVel,
+                rate * Time.fixedDeltaTime
+            );
         }
 
-        if (inputManager != null && inputManager.Move.sqrMagnitude < 0.01f)
+        // 4) Hard snap near stop to kill micro-drift
+        float stopSq = GameConstants.PLAYER_STOP_THRESHOLD * GameConstants.PLAYER_STOP_THRESHOLD;
+        if (!hasInput && velocity.sqrMagnitude < stopSq) {
             velocity = Vector2.zero;
+        }
+
+        // 5) Move
+        rb.MovePosition(rb.position + velocity * Time.fixedDeltaTime);
+
+        // 6) Rotate to aim
+        if (inputManager != null && inputManager.Aim.sqrMagnitude > GameConstants.AIM_THRESHOLD) {
+            float angle = Mathf.Atan2(inputManager.Aim.y, inputManager.Aim.x) * Mathf.Rad2Deg;
+            rb.rotation = angle + GameConstants.SPRITE_ROTATION_OFFSET;
+        }
     }
 }
