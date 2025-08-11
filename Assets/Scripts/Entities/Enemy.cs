@@ -4,8 +4,8 @@ using UnityEngine;
 /// Basic enemy entity. Static target for testing combat mechanics and beat synchronization.
 /// Takes damage and provides feedback when hit by player attacks.
 /// </summary>
-public class Enemy : Entity {
-    
+public class Enemy : Entity
+{
     [Header("Enemy Visual Settings")]
     public Color aliveColor = GameConstants.ENEMY_ALIVE_COLOR;
     public Color deadColor = GameConstants.ENEMY_DEAD_COLOR;
@@ -17,45 +17,45 @@ public class Enemy : Entity {
     /// </summary>
     protected override bool IsStaticEntity() => true;
 
-    protected override void Awake() {
+    protected override void Awake()
+    {
         base.Awake();
-        
         // Set enemy tag for collision detection
         gameObject.tag = "Enemy";
-        
         // Set initial visual state
         UpdateVisuals();
-        
         // Start in off-duty state (static dummy)
         SetDutyState(false);
     }
 
-    public override void TakeDamage(float amount) {
+    public override void TakeDamage(float amount)
+    {
         if (currentState == EntityState.DEAD) return;
-        
         base.TakeDamage(amount);
-        
         // Determine if this was a strong attack based on damage amount
         bool isStrongAttack = amount >= GameConstants.STRONG_DAMAGE;
-        
         // Delegate visual feedback to helper
-        if (currentState != EntityState.DEAD) {
-            if (isStrongAttack) {
+        if (currentState != EntityState.DEAD)
+        {
+            if (isStrongAttack)
+            {
                 AnimationHelper.ShowStrongHitShake(transform, spriteRenderer, hitFlashColor, hitFlashDuration);
-            } else {
+            }
+            else
+            {
                 AnimationHelper.ShowHitFlash(spriteRenderer, hitFlashColor, hitFlashDuration);
             }
         }
     }
 
-    protected override void OnStateChanged(EntityState from, EntityState to) {
+    protected override void OnStateChanged(EntityState from, EntityState to)
+    {
         base.OnStateChanged(from, to);
         UpdateVisuals();
-        
-        // Handle state-specific behavior
-        switch (to) {
+        switch (to)
+        {
             case EntityState.DEAD:
-                // TODO: Trigger death animation/effects
+                // Trigger death label
                 ShowDeathLabel();
                 break;
             case EntityState.ALIVE:
@@ -64,23 +64,25 @@ public class Enemy : Entity {
         }
     }
 
-    protected override void OnDutyStateChanged(bool fromDuty, bool toDuty) {
+    protected override void OnDutyStateChanged(bool fromDuty, bool toDuty)
+    {
         base.OnDutyStateChanged(fromDuty, toDuty);
-        
         // Handle duty-specific behavior
-        if (toDuty && currentState == EntityState.ALIVE) {
-            // TODO: Start patrol behavior (future feature)
+        if (toDuty && currentState == EntityState.ALIVE)
+        {
             DebugHelper.LogState($"{gameObject.name} is now on patrol duty");
-        } else {
-            // Static dummy mode
+        }
+        else
+        {
             DebugHelper.LogState($"{gameObject.name} is now off duty (static)");
         }
     }
 
-    private void UpdateVisuals() {
+    private void UpdateVisuals()
+    {
         if (spriteRenderer == null) return;
-        
-        switch (currentState) {
+        switch (currentState)
+        {
             case EntityState.DEAD:
                 spriteRenderer.color = deadColor;
                 break;
@@ -90,7 +92,8 @@ public class Enemy : Entity {
         }
     }
 
-    private void ShowDeathLabel() {
+    private void ShowDeathLabel()
+    {
         // Show simple death feedback for alpha testing
         AnimationHelper.ShowDeath(transform.position);
     }

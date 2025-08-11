@@ -4,22 +4,21 @@ using UnityEngine;
 /// Smoothly follows a target in 2D. Attach this to your Main Camera and
 /// assign the player transform to the target field in the Inspector.
 /// </summary>
-public class CameraController2D : MonoBehaviour {
+public class CameraController2D : MonoBehaviour
+{
     [Header("Follow target and offset")]
-    public Transform target;             
+    public Transform target;
     public Vector3 offset = new(0, 0, GameConstants.CAMERA_Z_OFFSET);
 
     [Header("Smoothing")]
-    public float smoothTime = GameConstants.CAMERA_SMOOTH_TIME;     
-
+    public float smoothTime = GameConstants.CAMERA_SMOOTH_TIME;
     private Vector3 velocity = Vector3.zero;
 
-    private void LateUpdate() {
+    private void LateUpdate()
+    {
         if (target == null) return;
-
         // Desired position = target position + fixed offset
         Vector3 desiredPosition = target.position + offset;
-
         // Smoothly move camera toward desired position
         transform.position = Vector3.SmoothDamp(
             transform.position,

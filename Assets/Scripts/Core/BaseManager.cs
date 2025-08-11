@@ -4,7 +4,8 @@ using UnityEngine;
 /// Abstract base for all managers. Defines a lifecycle
 /// that GameManager will call explicitly. Never instantiate directly.
 /// </summary>
-public abstract class BaseManager : MonoBehaviour {
+public abstract class BaseManager : MonoBehaviour
+{
     protected GameManager gameManager;
 
     public virtual void Configure(GameManager gm) => gameManager = gm;

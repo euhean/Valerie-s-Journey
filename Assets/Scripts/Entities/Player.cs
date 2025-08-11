@@ -2,12 +2,15 @@ using UnityEngine;
 
 /// <summary>
 /// The player entity. It holds references to its movement and attack components
-/// and registers them with the input and rhythm managers.
+/// and registers them with the input and rhythm managers. Also manages weapon
+/// and duty state.
 /// </summary>
-public class Player : Entity {
+[RequireComponent(typeof(PlayerMover2D), typeof(PlayerAttackController))]
+public class Player : Entity
+{
     [Header("Manager References")]
     public InputManager inputManager;
-    public TimeManager  timeManager;
+    public TimeManager timeManager;
 
     [Header("Player Components")]
     public Weapon playerWeapon; // Assign in inspector or find in children
@@ -15,53 +18,65 @@ public class Player : Entity {
     private PlayerMover2D mover;
     private PlayerAttackController attackController;
 
-    protected override void Awake() {
+    protected override void Awake()
+    {
         base.Awake();
-        
         mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
-        
         // Find weapon in children if not assigned
-        if (playerWeapon == null) {
+        if (playerWeapon == null)
+        {
             playerWeapon = GetComponentInChildren<Weapon>();
         }
-        
         // Start player in on-duty state (weapon drawn)
         SetDutyState(true);
     }
 
-    private void OnEnable() {
+    private void OnEnable()
+    {
         // Register attack input when enabling the player
-        if (attackController != null) {
+        if (attackController != null)
+        {
             attackController.Register(inputManager, timeManager);
+        }
+        // Assign input manager to the mover
+        if (mover != null)
+        {
+            mover.inputManager = inputManager;
         }
     }
 
-    private void OnDisable() {
+    private void OnDisable()
+    {
         // Unregister attack input when disabling the player
-        if (attackController != null) {
+        if (attackController != null)
+        {
             attackController.Unregister(inputManager);
         }
     }
 
-    protected override void OnDutyStateChanged(bool fromDuty, bool toDuty) {
+    protected override void OnDutyStateChanged(bool fromDuty, bool toDuty)
+    {
         base.OnDutyStateChanged(fromDuty, toDuty);
-        
         // Update weapon state
-        if (playerWeapon != null) {
+        if (playerWeapon != null)
+        {
             playerWeapon.SetOwnerDutyState(toDuty);
         }
     }
 
-    private void Update() {
+    private void Update()
+    {
         // Update weapon aiming with right stick input
-        if (playerWeapon != null && inputManager != null && onDuty && currentState == EntityState.ALIVE) {
+        if (playerWeapon != null && inputManager != null && onDuty && currentState == EntityState.ALIVE)
+        {
             playerWeapon.UpdateAiming(inputManager.Aim);
         }
     }
 
     // Method for GameManager to control player duty state
-    public void SetPlayerDuty(bool isOnDuty) {
+    public void SetPlayerDuty(bool isOnDuty)
+    {
         SetDutyState(isOnDuty);
     }
 }

@@ -6,7 +6,8 @@ using UnityEngine.InputSystem;
 /// Handles input from the New Input System and exposes it
 /// via events and properties. Uses Xbox button/axes by default.
 /// </summary>
-public class InputManager : BaseManager {
+public class InputManager : BaseManager
+{
     [Header("Input Actions")]
     public InputActionReference moveAction;  // left stick (Vector2)
     public InputActionReference aimAction;   // right stick (Vector2)
@@ -21,7 +22,8 @@ public class InputManager : BaseManager {
     /// </summary>
     public event Action<double> OnBasicPressedDSP;
 
-    public override void StartRuntime() {
+    public override void StartRuntime()
+    {
         // Enable actions when entering Gameplay
         moveAction.action.Enable();
         aimAction.action.Enable();
@@ -30,18 +32,21 @@ public class InputManager : BaseManager {
         basicAction.action.performed += OnBasic;
     }
 
-    private void OnDisable() {
+    private void OnDisable()
+    {
         // Clean up event subscription
         basicAction.action.performed -= OnBasic;
     }
 
-    private void Update() {
+    private void Update()
+    {
         // Update movement and aim vectors every frame
         Move = moveAction.action.ReadValue<Vector2>();
         Aim  = aimAction.action.ReadValue<Vector2>();
     }
 
-    private void OnBasic(InputAction.CallbackContext ctx) {
+    private void OnBasic(InputAction.CallbackContext ctx)
+    {
         // Use audio DSP time for rhythm checks
         OnBasicPressedDSP?.Invoke(AudioSettings.dspTime);
     }
