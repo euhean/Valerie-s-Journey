@@ -9,11 +9,11 @@ public class PlayerMover2D : MonoBehaviour {
     public InputManager inputManager;
 
     [Header("Movement Parameters")]
-    public float speed       = 6f;
-    public float acceleration = 12f;
+    public float speed = GameConstants.PLAYER_SPEED;
+    public float acceleration = GameConstants.PLAYER_ACCELERATION;
 
     private Rigidbody2D rb;
-    private Vector2     velocity;
+    private Vector2 velocity;
 
     private void Awake() {
         rb = GetComponent<Rigidbody2D>();
@@ -32,9 +32,9 @@ public class PlayerMover2D : MonoBehaviour {
         rb.MovePosition(rb.position + velocity * Time.fixedDeltaTime);
 
         // Rotate to face the aim direction if the right stick is non-zero
-        if (inputManager != null && inputManager.Aim.sqrMagnitude > 0.01f) {
+        if (inputManager != null && inputManager.Aim.sqrMagnitude > GameConstants.AIM_THRESHOLD) {
             float angle = Mathf.Atan2(inputManager.Aim.y, inputManager.Aim.x) * Mathf.Rad2Deg;
-            rb.rotation = angle - 90f; // adjust for your sprite's forward direction
+            rb.rotation = angle + GameConstants.SPRITE_ROTATION_OFFSET; // adjust for your sprite's forward direction
         }
     }
 }

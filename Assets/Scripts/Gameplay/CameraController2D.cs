@@ -7,10 +7,10 @@ using UnityEngine;
 public class CameraController2D : MonoBehaviour {
     [Header("Follow target and offset")]
     public Transform target;             
-    public Vector3 offset = new(0, 0, -10f);
+    public Vector3 offset = new(0, 0, GameConstants.CAMERA_Z_OFFSET);
 
     [Header("Smoothing")]
-    public float smoothTime = 0.3f;     
+    public float smoothTime = GameConstants.CAMERA_SMOOTH_TIME;     
 
     private Vector3 velocity = Vector3.zero;
 

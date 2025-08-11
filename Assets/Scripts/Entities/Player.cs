@@ -9,12 +9,25 @@ public class Player : Entity {
     public InputManager inputManager;
     public TimeManager  timeManager;
 
-    private PlayerMover2D        mover;
+    [Header("Player Components")]
+    public Weapon playerWeapon; // Assign in inspector or find in children
+
+    private PlayerMover2D mover;
     private PlayerAttackController attackController;
 
-    private void Awake() {
+    protected override void Awake() {
+        base.Awake();
+        
         mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
+        
+        // Find weapon in children if not assigned
+        if (playerWeapon == null) {
+            playerWeapon = GetComponentInChildren<Weapon>();
+        }
+        
+        // Start player in on-duty state (weapon drawn)
+        SetDutyState(true);
     }
 
     private void OnEnable() {
@@ -29,5 +42,26 @@ public class Player : Entity {
         if (attackController != null) {
             attackController.Unregister(inputManager);
         }
+    }
+
+    protected override void OnDutyStateChanged(bool fromDuty, bool toDuty) {
+        base.OnDutyStateChanged(fromDuty, toDuty);
+        
+        // Update weapon state
+        if (playerWeapon != null) {
+            playerWeapon.SetOwnerDutyState(toDuty);
+        }
+    }
+
+    private void Update() {
+        // Update weapon aiming with right stick input
+        if (playerWeapon != null && inputManager != null && onDuty && currentState == EntityState.ALIVE) {
+            playerWeapon.UpdateAiming(inputManager.Aim);
+        }
+    }
+
+    // Method for GameManager to control player duty state
+    public void SetPlayerDuty(bool isOnDuty) {
+        SetDutyState(isOnDuty);
     }
 }
