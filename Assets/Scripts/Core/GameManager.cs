@@ -14,7 +14,6 @@ public class GameManager : MonoBehaviour {
         DialogueScene,
         LevelLoad,
         CompletionScene,
-        ExitOrContinue,
         Gameplay
     }
 

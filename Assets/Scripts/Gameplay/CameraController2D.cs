@@ -7,7 +7,7 @@ using UnityEngine;
 public class CameraController2D : MonoBehaviour {
     [Header("Follow target and offset")]
     public Transform target;             
-    public Vector3   offset = new Vector3(0, 0, -10f);
+    public Vector3 offset = new(0, 0, -10f);
 
     [Header("Smoothing")]
     public float smoothTime = 0.3f;     

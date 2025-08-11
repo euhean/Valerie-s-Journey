@@ -52,6 +52,7 @@
     <Compile Include="Assets\Scripts\Gameplay\PlayerMover2D.cs" />
     <Compile Include="Assets\Scripts\Core\BaseManager.cs" />
     <Compile Include="Assets\Scripts\Managers\TimeManager.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\CameraController2D.cs" />
     <Compile Include="Assets\Scripts\Entities\Enemy.cs" />
     <Compile Include="Assets\Scripts\Gameplay\PlayerAttackController.cs" />
     <Compile Include="Assets\Scripts\Core\EventBus.cs" />
