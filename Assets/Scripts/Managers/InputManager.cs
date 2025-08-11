@@ -1,3 +1,7 @@
+using System;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
 /// <summary>
 /// Handles input from the New Input System and exposes it
 /// via events and properties. Uses Xbox button/axes by default.

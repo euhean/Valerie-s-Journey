@@ -1,3 +1,5 @@
+using UnityEngine;
+
 /// <summary>
 /// Orchestrates high‑level game flow. For the prototype,
 /// it only transitions from Boot to Gameplay and drives manager lifecycles.

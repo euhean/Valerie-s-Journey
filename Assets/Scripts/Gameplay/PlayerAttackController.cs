@@ -1,3 +1,5 @@
+using UnityEngine;
+
 /// <summary>
 /// Handles attack timing and combo logic. It subscribes to the basic attack
 /// input and uses the TimeManager to decide if hits are on-beat.

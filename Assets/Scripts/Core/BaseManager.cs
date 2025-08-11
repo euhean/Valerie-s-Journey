@@ -1,3 +1,5 @@
+using UnityEngine;
+
 /// <summary>
 /// Abstract base for all managers. Defines a lifecycle
 /// that GameManager will call explicitly. Never instantiate directly.

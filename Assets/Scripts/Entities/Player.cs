@@ -1,3 +1,5 @@
+using UnityEngine;
+
 /// <summary>
 /// The player entity. It holds references to its movement and attack components
 /// and registers them with the input and rhythm managers.
@@ -10,8 +12,7 @@ public class Player : Entity {
     private PlayerMover2D        mover;
     private PlayerAttackController attackController;
 
-    protected override void Awake() {
-        base.Awake();
+    private void Awake() {
         mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
     }

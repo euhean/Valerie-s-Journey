@@ -1,3 +1,6 @@
+using System;
+using UnityEngine;
+
 /// <summary>
 /// Central rhythm/conductor. Emits beat events based on BPM and
 /// provides on‑beat/off‑beat checks for timing user inputs.

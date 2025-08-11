@@ -1,3 +1,5 @@
+using UnityEngine;
+
 /// <summary>
 /// Handles 2D movement and optional rotation based on the aim stick.
 /// Requires a Rigidbody2D for smooth, physics-friendly motion.

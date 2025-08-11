@@ -1,3 +1,5 @@
+using UnityEngine;
+
 /// <summary>
 /// Base class for all living game objects. Provides simple health/damage.
 /// </summary>
