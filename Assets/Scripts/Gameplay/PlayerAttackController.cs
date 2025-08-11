@@ -27,25 +27,21 @@ public class PlayerAttackController : MonoBehaviour
         }
     }
 
-    // Called by Player when enabling
-    public void Register(InputManager input, TimeManager time)
-    {
-        inputManager = input;
-        timeManager = time;
-        if (inputManager != null)
-        {
-            inputManager.OnBasicPressedDSP += HandleAttackInput;
-        }
-        onBeatStreak = 0;
-    }
+    private bool subscribed;
 
-    // Called by Player when disabling
-    public void Unregister(InputManager input)
-    {
-        if (input != null)
-        {
-            input.OnBasicPressedDSP -= HandleAttackInput;
+    public void Register(InputManager input, TimeManager time) {
+        if (subscribed) return;
+        inputManager = input;
+        timeManager  = time;
+        if (inputManager != null) {
+            inputManager.OnBasicPressedDSP += HandleAttackInput;
+            subscribed = true;
         }
+    }
+    public void Unregister(InputManager input) {
+        if (!subscribed || input == null) return;
+        input.OnBasicPressedDSP -= HandleAttackInput;
+        subscribed = false;
     }
 
     private void HandleAttackInput(double dspTime)

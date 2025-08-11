@@ -10,25 +10,30 @@ public class Player : Entity
 {
     [Header("Manager References")]
     public InputManager inputManager;
-    public TimeManager timeManager;
+    public TimeManager  timeManager;
 
     [Header("Player Components")]
     public Weapon playerWeapon; // Assign in inspector or find in children
 
-    private PlayerMover2D mover;
+    private PlayerMover2D          mover;
     private PlayerAttackController attackController;
 
     protected override void Awake()
     {
         base.Awake();
-        mover = GetComponent<PlayerMover2D>();
+
+        mover            = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
+
         // Find weapon in children if not assigned
         if (playerWeapon == null)
-        {
-            playerWeapon = GetComponentInChildren<Weapon>();
-        }
-        // Start player in on-duty state (weapon drawn)
+            playerWeapon = GetComponentInChildren<Weapon>(true);
+        // IMPORTANT: do NOT SetDutyState here; We arm in Start() once everyone’s Awake() ran
+    }
+
+    private void Start()
+    {
+        // Now it’s safe to arm the player (Weapon.Awake has completed)
         SetDutyState(true);
     }
 
@@ -36,23 +41,17 @@ public class Player : Entity
     {
         // Register attack input when enabling the player
         if (attackController != null)
-        {
             attackController.Register(inputManager, timeManager);
-        }
-        // Assign input manager to the mover
+        // Assign input manager to the mover (so movement works)
         if (mover != null)
-        {
             mover.inputManager = inputManager;
-        }
     }
 
     private void OnDisable()
     {
         // Unregister attack input when disabling the player
         if (attackController != null)
-        {
             attackController.Unregister(inputManager);
-        }
     }
 
     protected override void OnDutyStateChanged(bool fromDuty, bool toDuty)
@@ -60,18 +59,14 @@ public class Player : Entity
         base.OnDutyStateChanged(fromDuty, toDuty);
         // Update weapon state
         if (playerWeapon != null)
-        {
             playerWeapon.SetOwnerDutyState(toDuty);
-        }
     }
 
     private void Update()
     {
         // Update weapon aiming with right stick input
         if (playerWeapon != null && inputManager != null && onDuty && currentState == EntityState.ALIVE)
-        {
             playerWeapon.UpdateAiming(inputManager.Aim);
-        }
     }
 
     // Method for GameManager to control player duty state

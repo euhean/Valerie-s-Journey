@@ -22,20 +22,21 @@ public class InputManager : BaseManager
     /// </summary>
     public event Action<double> OnBasicPressedDSP;
 
-    public override void StartRuntime()
-    {
-        // Enable actions when entering Gameplay
+    private bool inputBound;
+
+    public override void StartRuntime() {
+        if (inputBound) return;
         moveAction.action.Enable();
         aimAction.action.Enable();
         basicAction.action.Enable();
-
         basicAction.action.performed += OnBasic;
+        inputBound = true;
     }
 
-    private void OnDisable()
-    {
-        // Clean up event subscription
+    private void OnDisable() {
+        if (!inputBound) return;
         basicAction.action.performed -= OnBasic;
+        inputBound = false;
     }
 
     private void Update()

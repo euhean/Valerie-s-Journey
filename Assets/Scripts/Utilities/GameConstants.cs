@@ -13,8 +13,8 @@ public static class GameConstants
     public const float ATTACK_COOLDOWN = 0.15f;
 
     // Movement Constants
-    public const float PLAYER_SPEED = 6f;
-    public const float PLAYER_ACCELERATION = 12f;
+    public const float PLAYER_SPEED = 4f;
+    public const float PLAYER_ACCELERATION = 8f;
     public const float AIM_THRESHOLD = 0.01f;
     public const float WEAPON_AIM_THRESHOLD = 0.1f;
 
@@ -33,7 +33,7 @@ public static class GameConstants
 
     // Entity Constants
     public const float DEFAULT_MAX_HEALTH = 100f;
-    public const float RIGIDBODY_LINEAR_DAMPING = 2f;
+    public const float RIGIDBODY_LINEAR_DAMPING = 5f;
     public const float RIGIDBODY_ANGULAR_DAMPING = 5f;
 
     // Colors for instant feedback

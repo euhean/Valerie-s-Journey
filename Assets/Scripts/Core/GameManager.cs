@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 /// <summary>
 /// Orchestrates high‑level game flow. In this prototype it supports
@@ -16,11 +17,8 @@ public class GameManager : MonoBehaviour
     public void SetHitboxVisualization(bool enabled)
     {
         if (hitboxVisualizer != null)
-        {
             hitboxVisualizer.ToggleVisualization(enabled);
-        }
     }
-
     public enum GameState
     {
         Boot,
@@ -50,20 +48,13 @@ public class GameManager : MonoBehaviour
         DebugHelper.LogManager("GameManager initializing...");
 
         // Auto-find managers if not assigned and auto-config is enabled
-        if (autoConfigureScene)
-        {
-            AutoConfigureScene();
-        }
+        if (autoConfigureScene) AutoConfigureScene();
 
         // Wire managers to this GameManager
         if (inputManager != null)
-        {
             inputManager.Configure(this);
-        }
         if (timeManager != null)
-        {
             timeManager.Configure(this);
-        }
 
         // Initialize and bind events
         if (inputManager != null)
@@ -81,28 +72,16 @@ public class GameManager : MonoBehaviour
         ChangeState(GameState.Gameplay);
     }
 
-    private void AutoConfigureScene()
+    private void  AutoConfigureScene()
     {
         // Find managers if not assigned
         if (timeManager == null)
-        {
             timeManager = FindFirstObjectByType<TimeManager>();
-        }
         if (inputManager == null)
-        {
             inputManager = FindFirstObjectByType<InputManager>();
-        }
 
         // Ensure there's an AudioListener in the scene
         EnsureAudioListener();
-
-        // Find and configure all players in the scene
-        Player[] players = FindObjectsByType<Player>(FindObjectsSortMode.None);
-        foreach (Player player in players)
-        {
-            // Set player duty state to start combat-ready
-            player.SetPlayerDuty(true);
-        }
     }
 
     private void EnsureAudioListener()
@@ -115,9 +94,7 @@ public class GameManager : MonoBehaviour
             // Try to find the main camera and add AudioListener to it
             Camera mainCamera = Camera.main;
             if (mainCamera == null)
-            {
                 mainCamera = FindFirstObjectByType<Camera>();
-            }
             if (mainCamera != null)
             {
                 mainCamera.gameObject.AddComponent<AudioListener>();
@@ -130,10 +107,7 @@ public class GameManager : MonoBehaviour
                 DebugHelper.LogManager("Added AudioListener to GameManager (no camera found)");
             }
         }
-        else
-        {
-            DebugHelper.LogManager($"AudioListener already exists on {existingListener.name}");
-        }
+        else DebugHelper.LogManager($"AudioListener already exists on {existingListener.name}");
     }
 
     public void ChangeState(GameState next)
@@ -142,14 +116,8 @@ public class GameManager : MonoBehaviour
         State = next;
         if (State == GameState.Gameplay)
         {
-            if (inputManager != null)
-            {
-                inputManager.StartRuntime();
-            }
-            if (timeManager != null)
-            {
-                timeManager.StartRuntime();
-            }
+            if (inputManager != null) inputManager.StartRuntime();
+            if (timeManager != null) timeManager.StartRuntime();
         }
         // Add other state transitions here as your flow expands
     }

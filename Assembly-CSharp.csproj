@@ -59,6 +59,7 @@
     <Compile Include="Assets\Scripts\Utilities\ComponentHelper.cs" />
     <Compile Include="Assets\Scripts\Entities\Enemy.cs" />
     <Compile Include="Assets\Scripts\Gameplay\PlayerAttackController.cs" />
+    <Compile Include="Assets\Scripts\Managers\Metronome.cs" />
     <Compile Include="Assets\Scripts\Core\EventBus.cs" />
     <Compile Include="Assets\Scripts\Utilities\HitboxVisualizer.cs" />
     <Compile Include="Assets\Scripts\Managers\InputManager.cs" />

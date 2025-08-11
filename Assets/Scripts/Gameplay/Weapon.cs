@@ -5,7 +5,10 @@ using System.Collections.Generic;
 /// Generic weapon class that handles collision detection, visual representation,
 /// and damage dealing. Should be attached to a child GameObject of the player.
 /// </summary>
+[DisallowMultipleComponent]
 [RequireComponent(typeof(BoxCollider2D), typeof(SpriteRenderer))]
+// Optional: ensure Weapon.Awake runs before Player.Awake if you ever touch it in Player.Awake
+// [DefaultExecutionOrder(-50)]
 public class Weapon : MonoBehaviour
 {
     [Header("Weapon Settings")]
@@ -13,12 +16,14 @@ public class Weapon : MonoBehaviour
     public float strongDamage = GameConstants.STRONG_DAMAGE;
 
     [Header("Visual Settings")]
-    public Color onDutyColor = GameConstants.WEAPON_ON_DUTY_COLOR;
+    public Color onDutyColor  = GameConstants.WEAPON_ON_DUTY_COLOR;
     public Color offDutyColor = GameConstants.WEAPON_OFF_DUTY_COLOR;
-    public Color attackColor = GameConstants.WEAPON_ATTACK_COLOR;
+    public Color attackColor  = GameConstants.WEAPON_ATTACK_COLOR;
 
-    private BoxCollider2D weaponCollider;
-    private SpriteRenderer weaponRenderer;
+    [Header("Components")]
+    [SerializeField] private BoxCollider2D  weaponCollider;
+    [SerializeField] private SpriteRenderer weaponRenderer;
+
     private Entity ownerEntity;
     private bool isAttacking = false;
     private bool currentAttackIsStrong = false;
@@ -26,49 +31,59 @@ public class Weapon : MonoBehaviour
     // Track entities we've already hit during current attack to prevent multiple hits
     private readonly HashSet<Entity> hitEntitiesThisAttack = new HashSet<Entity>();
 
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        // Keep references wired in the editor and enforce trigger
+        if (!weaponCollider)  weaponCollider  = GetComponent<BoxCollider2D>();
+        if (!weaponRenderer)  weaponRenderer  = GetComponent<SpriteRenderer>();
+        if (weaponCollider)   weaponCollider.isTrigger = true;
+    }
+#endif
+
     private void Awake()
     {
-        weaponCollider = GetComponent<BoxCollider2D>();
-        weaponRenderer = GetComponent<SpriteRenderer>();
+        // Final runtime guarantees (no lazy init needed)
+        weaponCollider = weaponCollider ? weaponCollider : GetComponent<BoxCollider2D>();
+        weaponRenderer = weaponRenderer ? weaponRenderer : GetComponent<SpriteRenderer>();
+        ownerEntity    = GetComponentInParent<Entity>();
 
-        // Set as trigger for collision detection
+        // Hard contract: these must exist because of RequireComponent
+        Debug.Assert(weaponCollider && weaponRenderer, "Weapon requires BoxCollider2D + SpriteRenderer.");
         weaponCollider.isTrigger = true;
 
-        // Auto-configure collider to match sprite size
-        if (weaponRenderer != null && weaponCollider != null)
+        // Auto-configure collider to match sprite size (when present)
+        if (weaponRenderer.sprite != null)
         {
             ComponentHelper.AutoConfigureColliderToSprite(weaponRenderer, weaponCollider);
         }
 
-        // Find owner entity in parent
-        ownerEntity = GetComponentInParent<Entity>();
-
-        // Start in off-duty state
+        // Start hidden/off-duty — Player will enable in Start()
         SetVisualState(false);
+        if (weaponCollider) weaponCollider.enabled = false;
     }
 
     public void SetOwnerDutyState(bool isOnDuty)
     {
+        // Visual + collider gate
         SetVisualState(isOnDuty);
-        // Enable/disable collider based on duty state
-        weaponCollider.enabled = isOnDuty;
+        if (weaponCollider) weaponCollider.enabled = isOnDuty;
     }
 
     public void PerformAttack(bool isStrongAttack)
     {
         if (ownerEntity == null || ownerEntity.currentState != Entity.EntityState.ALIVE || !ownerEntity.onDuty)
-        {
             return;
-        }
+
         isAttacking = true;
         currentAttackIsStrong = isStrongAttack;
         hitEntitiesThisAttack.Clear();
 
-        // Delegate visual feedback to helper
+        // Quick flash on the weapon itself
         Color effectColor = isStrongAttack ? GameConstants.ORANGE_COLOR : attackColor;
         AnimationHelper.ShowHitFlash(weaponRenderer, effectColor, GameConstants.ATTACK_VISUAL_DURATION);
 
-        // Reset attack state after brief delay
+        // End the attack window shortly after
         Invoke(nameof(ResetAttackState), GameConstants.ATTACK_VISUAL_DURATION);
     }
 
@@ -76,34 +91,25 @@ public class Weapon : MonoBehaviour
     {
         isAttacking = false;
         // Return to duty-appropriate visual state
-        SetVisualState(ownerEntity != null && ownerEntity.currentState == Entity.EntityState.ALIVE && ownerEntity.onDuty);
+        bool show = ownerEntity != null && ownerEntity.currentState == Entity.EntityState.ALIVE && ownerEntity.onDuty;
+        SetVisualState(show);
+        if (weaponCollider) weaponCollider.enabled = show;
     }
 
     private void SetVisualState(bool isOnDuty)
     {
-        if (weaponRenderer != null)
-        {
-            weaponRenderer.color = isOnDuty ? onDutyColor : offDutyColor;
-            weaponRenderer.enabled = isOnDuty; // Only show weapon when on duty
-        }
+        if (!weaponRenderer) return;
+        weaponRenderer.enabled = isOnDuty;
+        weaponRenderer.color   = isOnDuty ? onDutyColor : offDutyColor;
     }
 
     private void OnTriggerStay2D(Collider2D other)
     {
-        // Only deal damage during active attacks
         if (!isAttacking) return;
-
-        // Check if target has "Enemy" tag
         if (!other.CompareTag("Enemy")) return;
-
-        // Get entity component
-        Entity targetEntity = other.GetComponent<Entity>();
-        if (targetEntity == null) return;
-
-        // Prevent hitting the same entity multiple times per attack
+        if (!other.TryGetComponent<Entity>(out var targetEntity)) return;
         if (hitEntitiesThisAttack.Contains(targetEntity)) return;
 
-        // Deal damage
         float damage = currentAttackIsStrong ? strongDamage : basicDamage;
         string attackType = currentAttackIsStrong ? "STRONG" : "basic";
         DebugHelper.LogCombat($"Weapon hit {targetEntity.name} with {attackType} attack ({damage} damage)");
@@ -113,12 +119,11 @@ public class Weapon : MonoBehaviour
 
     public void UpdateAiming(Vector2 aimDirection)
     {
-        if (ownerEntity == null || ownerEntity.currentState != Entity.EntityState.ALIVE || !ownerEntity.onDuty)
-        {
-            return;
-        }
         // Rotate weapon to face aim direction
-        if (aimDirection.magnitude > GameConstants.WEAPON_AIM_THRESHOLD)
+        if (ownerEntity == null || ownerEntity.currentState != Entity.EntityState.ALIVE || !ownerEntity.onDuty)
+            return;
+
+        if (aimDirection.sqrMagnitude > (GameConstants.WEAPON_AIM_THRESHOLD * GameConstants.WEAPON_AIM_THRESHOLD))
         {
             float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
