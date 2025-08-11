@@ -11,6 +11,84 @@
 *.sln.docstates
 *.env
 
+# Unity-specific ignores
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+
+# Unity Asset Store Tools
+AssetStoreTools*
+
+# Unity package manager
+.upm/
+[Pp]ackages/manifest.json.orig
+[Pp]ackages/packages-lock.json
+
+# Unity Asset Database
+[Aa]ssets/StreamingAssets*.meta
+
+# Unity Timeline cache
+[Aa]ssets/[Tt]imeline/
+
+# Unity Addressables (for advanced content management)
+[Aa]ssets/[Aa]ddressableAssetsData*
+
+# Unity crash logs & system info
+sysinfo.txt
+unity-*.log
+*.stackdump
+
+# Audio cache (important for rhythm game DSP)
+[Aa]udio[Cc]ache/
+[Aa]udio[Ii]mporter[Cc]ache/
+
+# TextMeshPro generated files
+[Aa]ssets/TextMesh*Pro/
+
+# 2D Pixel Perfect camera cache
+[Aa]ssets/[Pp]ixel[Pp]erfect*/
+
+# Input System generated files
+[Aa]ssets/[Ii]nput[Ss]ystem*/
+
+# Large binary assets (rhythm game audio/art)
+# Audio files
+*.wav
+*.aiff
+*.mp3
+*.ogg
+*.m4a
+*.aac
+*.flac
+*.wma
+
+# Art source files (keep final sprites/textures in repo)
+*.psd
+*.ai
+*.sketch
+*.figma
+*.aseprite
+*.pyxel
+
+# Video files
+*.mp4
+*.mov
+*.avi
+*.webm
+*.ogv
+
+# 3D model source files (if any)
+*.blend
+*.max
+*.ma
+*.mb
+*.fbx
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
