@@ -25,15 +25,7 @@ public class Metronome : MonoBehaviour
 
     private void HandleBeat(int beatIndex)
     {
-        if (audioSource != null && beatClip != null)
-        {
-            // Play a short click on each beat
-            audioSource.PlayOneShot(beatClip);
-        }
-        else
-        {
-            // Fallback: log the beat to the console
-            Debug.Log($"Beat {beatIndex}");
-        }
+        if (audioSource != null && beatClip != null) audioSource.PlayOneShot(beatClip);
+        else Debug.Log($"Beat {beatIndex}");
     }
 }

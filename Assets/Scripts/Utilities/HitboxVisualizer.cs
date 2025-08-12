@@ -47,16 +47,12 @@ public class HitboxVisualizer : MonoBehaviour
         // Draw all 2D colliders as rectangles (accurate for 2D)
         var all2DColliders = FindObjectsByType<Collider2D>(FindObjectsSortMode.None);
         foreach (var col in all2DColliders)
-        {
             DrawRectFor2DColliderOnScreen(col, cam, hitboxColor);
-        }
 
         // Draw all 3D colliders as rectangles
         var all3DColliders = FindObjectsByType<Collider>(FindObjectsSortMode.None);
         foreach (var col in all3DColliders)
-        {
             DrawRectOnScreen(col.bounds, cam, hitboxColor);
-        }
     }
 
     // Draws a rectangle for a 2D collider using its actual shape
@@ -70,8 +66,8 @@ public class HitboxVisualizer : MonoBehaviour
             Vector2 center = (Vector2)box.transform.position + (Vector2)(box.transform.rotation * (Vector3)offset);
 
             // Get the 4 corners in world space
-            Vector2 right = box.transform.right * size.x * 0.5f;
-            Vector2 up = box.transform.up * size.y * 0.5f;
+            Vector2 right = 0.5f * size.x * box.transform.right;
+            Vector2 up = 0.5f * size.y * box.transform.up;
             Vector3[] worldCorners = new Vector3[4];
             worldCorners[0] = center - right - up;
             worldCorners[1] = center + right - up;
@@ -95,11 +91,7 @@ public class HitboxVisualizer : MonoBehaviour
             GUI.DrawTexture(rect, WhiteTex, ScaleMode.StretchToFill, true, 0);
             GUI.color = prevColor;
         }
-        else
-        {
-            // Fallback: use bounds
-            DrawRectOnScreen(col.bounds, cam, color);
-        }
+        else DrawRectOnScreen(col.bounds, cam, color);
     }
 
     // Draws a rectangle for any 3D collider or fallback

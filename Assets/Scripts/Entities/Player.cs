@@ -15,20 +15,19 @@ public class Player : Entity
     [Header("Player Components")]
     public Weapon playerWeapon; // Assign in inspector or find in children
 
-    private PlayerMover2D          mover;
+    private PlayerMover2D mover;
     private PlayerAttackController attackController;
 
     protected override void Awake()
     {
         base.Awake();
 
-        mover            = GetComponent<PlayerMover2D>();
+        mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
 
         // Find weapon in children if not assigned
         if (playerWeapon == null)
             playerWeapon = GetComponentInChildren<Weapon>(true);
-        // IMPORTANT: do NOT SetDutyState here; We arm in Start() once everyone’s Awake() ran
     }
 
     private void Start()

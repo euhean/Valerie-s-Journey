@@ -22,9 +22,7 @@ public class PlayerAttackController : MonoBehaviour
         // Find weapon component in the player hierarchy
         playerWeapon = GetComponentInChildren<Weapon>();
         if (playerWeapon == null)
-        {
             DebugHelper.LogWarning("PlayerAttackController: No Weapon component found in children!");
-        }
     }
 
     private bool subscribed;
@@ -47,10 +45,7 @@ public class PlayerAttackController : MonoBehaviour
     private void HandleAttackInput(double dspTime)
     {
         // Ignore if no rhythm manager or double-tap too soon
-        if (timeManager == null || dspTime - lastAttackDSP < attackCooldown)
-        {
-            return;
-        }
+        if (timeManager == null || dspTime - lastAttackDSP < attackCooldown) return;
         lastAttackDSP = dspTime;
 
         // Check on-beat timing
@@ -67,19 +62,14 @@ public class PlayerAttackController : MonoBehaviour
         onBeatStreak++;
         // Show combo progress (only if we have a streak going)
         if (onBeatStreak > 1)
-        {
             AnimationHelper.ShowCombo(transform.position, Mathf.Min(onBeatStreak, GameConstants.COMBO_STREAK_FOR_STRONG));
-        }
         if (onBeatStreak >= GameConstants.COMBO_STREAK_FOR_STRONG)
         {
             DebugHelper.LogCombat($"STRONG ATTACK triggered after {GameConstants.COMBO_STREAK_FOR_STRONG}-hit combo!");
             onBeatStreak = 0;
             StrongAttack();
         }
-        else
-        {
-            BasicAttack(true);
-        }
+        else BasicAttack(true);
     }
 
     private void BasicAttack(bool onBeat)
@@ -89,10 +79,7 @@ public class PlayerAttackController : MonoBehaviour
         {
             playerWeapon.PerformAttack(false); // false = basic attack
             // Show different feedback based on timing accuracy
-            if (onBeat)
-            {
-                AnimationHelper.ShowAttack(playerWeapon.transform.position);
-            }
+            if (onBeat) AnimationHelper.ShowAttack(playerWeapon.transform.position);
             else
             {
                 AnimationHelper.ShowAttack(playerWeapon.transform.position);

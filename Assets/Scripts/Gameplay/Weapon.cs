@@ -54,9 +54,7 @@ public class Weapon : MonoBehaviour
 
         // Auto-configure collider to match sprite size (when present)
         if (weaponRenderer.sprite != null)
-        {
             ComponentHelper.AutoConfigureColliderToSprite(weaponRenderer, weaponCollider);
-        }
 
         // Start hidden/off-duty — Player will enable in Start()
         SetVisualState(false);

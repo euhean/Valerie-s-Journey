@@ -38,13 +38,8 @@ public class Enemy : Entity
         if (currentState != EntityState.DEAD)
         {
             if (isStrongAttack)
-            {
                 AnimationHelper.ShowStrongHitShake(transform, spriteRenderer, hitFlashColor, hitFlashDuration);
-            }
-            else
-            {
-                AnimationHelper.ShowHitFlash(spriteRenderer, hitFlashColor, hitFlashDuration);
-            }
+            else AnimationHelper.ShowHitFlash(spriteRenderer, hitFlashColor, hitFlashDuration);
         }
     }
 
@@ -69,13 +64,8 @@ public class Enemy : Entity
         base.OnDutyStateChanged(fromDuty, toDuty);
         // Handle duty-specific behavior
         if (toDuty && currentState == EntityState.ALIVE)
-        {
             DebugHelper.LogState($"{gameObject.name} is now on patrol duty");
-        }
-        else
-        {
-            DebugHelper.LogState($"{gameObject.name} is now off duty (static)");
-        }
+        else DebugHelper.LogState($"{gameObject.name} is now off duty (static)");
     }
 
     private void UpdateVisuals()

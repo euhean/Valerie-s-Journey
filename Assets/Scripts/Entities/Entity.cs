@@ -56,10 +56,7 @@ public abstract class Entity : MonoBehaviour
         health -= amount;
         DebugHelper.LogCombat($"{gameObject.name} took {amount} damage ({health:F1}/{maxHealth:F1} HP)");
 
-        if (health <= 0f)
-        {
-            Die();
-        }
+        if (health <= 0f) Die();
     }
 
     public virtual void SetState(EntityState newState)
@@ -92,10 +89,7 @@ public abstract class Entity : MonoBehaviour
         SetState(EntityState.DEAD);
 
         // Disable collider but keep the GameObject for death feedback
-        if (boxCollider != null)
-        {
-            boxCollider.enabled = false;
-        }
+        if (boxCollider != null) boxCollider.enabled = false;
 
         // Stop physics
         if (rb2D != null)

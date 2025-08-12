@@ -32,9 +32,7 @@ public static class ComponentHelper
 
         // Only log if debugging component setup
         if (DebugHelper.enableStateLogs)
-        {
             DebugHelper.LogState($"Auto-configured {boxCollider.name}: size={boxCollider.size}, offset={boxCollider.offset}");
-        }
     }
 
     /// <summary>
@@ -64,9 +62,7 @@ public static class ComponentHelper
         }
         // Only log summary if debugging component setup
         if (DebugHelper.enableStateLogs)
-        {
             DebugHelper.LogState($"Configured Rigidbody2D for {rb2D.name}: type={rb2D.bodyType}, gravity={rb2D.gravityScale}");
-        }
     }
 
     /// <summary>
@@ -81,19 +77,12 @@ public static class ComponentHelper
             return;
         }
         // Configure rigidbody
-        if (entity.rb2D != null)
-        {
-            ConfigureEntityRigidbody(entity.rb2D, isStaticEntity);
-        }
+        if (entity.rb2D != null) ConfigureEntityRigidbody(entity.rb2D, isStaticEntity);
         // Auto-size collider to sprite
         if (entity.spriteRenderer != null && entity.boxCollider != null)
-        {
             AutoConfigureColliderToSprite(entity.spriteRenderer, entity.boxCollider);
-        }
         // Only log summary if debugging component setup
         if (DebugHelper.enableStateLogs)
-        {
             DebugHelper.LogState($"Auto-configured all components for {entity.name}");
-        }
     }
 }

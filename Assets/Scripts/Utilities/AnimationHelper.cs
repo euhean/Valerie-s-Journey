@@ -40,9 +40,7 @@ public static class AnimationHelper
         // Find a MonoBehaviour context to run the coroutine on
         MonoBehaviour context = renderer.GetComponentInParent<MonoBehaviour>();
         if (context != null)
-        {
             context.StartCoroutine(HitFlashCoroutine(renderer, flashColor, duration));
-        }
     }
 
     public static void ShowStrongHitShake(Transform target, SpriteRenderer renderer, Color flashColor, float duration)
@@ -50,9 +48,7 @@ public static class AnimationHelper
         if (target == null || renderer == null) return;
         MonoBehaviour context = target.GetComponentInParent<MonoBehaviour>();
         if (context != null)
-        {
             context.StartCoroutine(StrongHitShakeCoroutine(target, renderer, flashColor, duration));
-        }
     }
 
     // Coroutines for hit effects
@@ -111,10 +107,8 @@ public class InstantTextFeedback : MonoBehaviour
     private void Update()
     {
         timer += Time.deltaTime;
-        if (timer >= duration)
-        {
-            Destroy(gameObject);
-        }
+        if (timer >= duration) Destroy(gameObject);
+
     }
     private void OnGUI()
     {
