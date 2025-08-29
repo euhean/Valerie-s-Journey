@@ -1,24 +1,23 @@
-using UnityEngine;
 using System.Collections;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Orchestrates high‑level game flow. In this prototype it supports
-/// a simple state machine and drives manager lifecycles. It can also
-/// automatically configure the scene by finding managers and players
-/// when running in a test environment.
+/// Central orchestrator. Singleton that persists across scenes and
+/// wires manager lifecycles. Re-runs auto-configuration when new
+/// scenes are loaded so manager refs don't become stale.
+/// 
+/// Minimal changes only: factor lifecycle wiring into RunManagerLifecycle()
+/// and call it from both initial Start() and scene-loaded handler.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
+    public static GameManager Instance { get; private set; }
+
     [Header("Debug Tools")]
     public HitboxVisualizer hitboxVisualizer;
-    /// <summary>
-    /// Toggle hitbox visualization on or off via GameManager.
-    /// </summary>
-    public void SetHitboxVisualization(bool enabled)
-    {
-        if (hitboxVisualizer != null)
-            hitboxVisualizer.ToggleVisualization(enabled);
-    }
+    public void SetHitboxVisualization(bool enabled) => hitboxVisualizer?.ToggleVisualization(enabled);
+
     public enum GameState
     {
         Boot,
@@ -37,64 +36,146 @@ public class GameManager : MonoBehaviour
     public InputManager inputManager;
     public TimeManager timeManager;
 
+    [Header("Level")]
+    [Tooltip("Assign LevelManager here (inspector)")]
+    public LevelManager levelManager;
+
+    [Header("Auto Assigned")]
+    public Player MainPlayer { get; private set; }
+
     [Header("Auto-Configuration")]
     [Tooltip("If true, GameManager will automatically find managers and players in the scene")]
     public bool autoConfigureScene = true;
 
     public GameState State { get; private set; } = GameState.Boot;
 
+    #region Unity lifecycle
     private void Awake()
     {
+        // singleton pattern
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+
         DebugHelper.LogManager("GameManager initializing...");
-
-        // Auto-find managers if not assigned and auto-config is enabled
-        if (autoConfigureScene) AutoConfigureScene();
-
-        // Wire managers to this GameManager
-        if (inputManager != null)
-            inputManager.Configure(this);
-        if (timeManager != null)
-            timeManager.Configure(this);
-
-        // Initialize and bind events
-        if (inputManager != null)
-        {
-            inputManager.Initialize();
-            inputManager.BindEvents();
-        }
-        if (timeManager != null)
-        {
-            timeManager.Initialize();
-            timeManager.BindEvents();
-        }
-
-        // For now, go straight into gameplay
-        ChangeState(GameState.Gameplay);
     }
 
-    private void  AutoConfigureScene()
+    private void OnEnable()
     {
-        // Find managers if not assigned
-        if (timeManager == null)
-            timeManager = FindFirstObjectByType<TimeManager>();
-        if (inputManager == null)
-            inputManager = FindFirstObjectByType<InputManager>();
+        // watch future scene loads so we can re-wire scene managers
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
 
-        // Ensure there's an AudioListener in the scene
+    private void OnDisable()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    /// <summary>
+    /// First-time bootstrap runs as a coroutine to allow scene objects to initialize.
+    /// </summary>
+    private IEnumerator Start()
+    {
+        // wait a frame so scene-initialized objects have run their Awake/OnEnable
+        yield return null;
+
+        if (autoConfigureScene) AutoConfigureScene();
+
+        // Configure / Initialize / Bind managers (do not start runtime here)
+        RunManagerLifecycle();
+
+        // enter gameplay state (this will start runtimes)
+        ChangeState(GameState.Gameplay);
+    }
+    #endregion
+
+    #region Manager wiring & scene handling
+    /// <summary>
+    /// Clears cached scene-local refs and re-finds managers on scene load,
+    /// then runs the same lifecycle wiring as Start. If the game is already
+    /// in Gameplay state, it re-starts the managers' runtime.
+    /// </summary>
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        DebugHelper.LogManager($"Scene loaded: {scene.name} — rewire managers");
+
+        // clear stale refs so AutoConfigureScene will find new ones
+        inputManager = null;
+        timeManager  = null;
+        levelManager = null;
+        MainPlayer   = null;
+
+        if (autoConfigureScene) AutoConfigureScene();
+
+        // Re-run configure/initialize/bind for new scene instances
+        RunManagerLifecycle();
+
+        // If we are currently in Gameplay, restart manager runtime
+        if (State == GameState.Gameplay)
+        {
+            inputManager?.StartRuntime();
+            timeManager?.StartRuntime();
+            levelManager?.StartRuntime();
+        }
+    }
+
+    /// <summary>
+    /// Auto-locate managers and the main player if not already assigned.
+    /// Uses FindFirstObjectByType so it's safe in editor/runtime.
+    /// </summary>
+    private void AutoConfigureScene()
+    {
+        timeManager ??= FindFirstObjectByType<TimeManager>();
+        inputManager ??= FindFirstObjectByType<InputManager>();
+        levelManager ??= FindFirstObjectByType<LevelManager>();
+        MainPlayer ??= FindFirstObjectByType<Player>();
+
+        if (MainPlayer != null)
+            DebugHelper.LogManager($"Auto-assigned MainPlayer: {MainPlayer.name}");
+
         EnsureAudioListener();
     }
 
+    /// <summary>
+    /// The common lifecycle steps used by Start() and OnSceneLoaded to avoid duplication:
+    /// - Configure(managers, level)
+    /// - Initialize()
+    /// - BindEvents()
+    /// Note: this method intentionally does NOT call StartRuntime() — state transitions control that.
+    /// </summary>
+    private void RunManagerLifecycle()
+    {
+        // Configure
+        inputManager?.Configure(this);
+        timeManager?.Configure(this);
+        levelManager?.Configure(this);
+
+        // Initialize
+        inputManager?.Initialize();
+        timeManager?.Initialize();
+        levelManager?.Initialize();
+
+        // Bind events / subscriptions
+        inputManager?.BindEvents();
+        timeManager?.BindEvents();
+        levelManager?.BindEvents();
+
+        DebugHelper.LogManager("RunManagerLifecycle completed (Configure/Initialize/Bind).");
+    }
+    #endregion
+
+    #region Utilities & state
     private void EnsureAudioListener()
     {
-        // Check if there's already an AudioListener in the scene
         AudioListener existingListener = FindFirstObjectByType<AudioListener>();
-
         if (existingListener == null)
         {
-            // Try to find the main camera and add AudioListener to it
             Camera mainCamera = Camera.main;
-            if (mainCamera == null)
-                mainCamera = FindFirstObjectByType<Camera>();
+            mainCamera ??= FindFirstObjectByType<Camera>();
             if (mainCamera != null)
             {
                 mainCamera.gameObject.AddComponent<AudioListener>();
@@ -102,12 +183,19 @@ public class GameManager : MonoBehaviour
             }
             else
             {
-                // No camera found, add to GameManager as fallback
                 gameObject.AddComponent<AudioListener>();
                 DebugHelper.LogManager("Added AudioListener to GameManager (no camera found)");
             }
         }
         else DebugHelper.LogManager($"AudioListener already exists on {existingListener.name}");
+    }
+
+    public void RegisterPlayer(Player p)
+    {
+        if (p == null) return;
+        MainPlayer = p;
+        DebugHelper.LogManager($"MainPlayer registered: {p.name}");
+        EventBus.Instance.Publish(new PlayerSpawnedEvent { player = p });
     }
 
     public void ChangeState(GameState next)
@@ -116,9 +204,10 @@ public class GameManager : MonoBehaviour
         State = next;
         if (State == GameState.Gameplay)
         {
-            if (inputManager != null) inputManager.StartRuntime();
-            if (timeManager != null) timeManager.StartRuntime();
+            inputManager?.StartRuntime();
+            timeManager?.StartRuntime();
+            levelManager?.StartRuntime();
         }
-        // Add other state transitions here as your flow expands
     }
+    #endregion
 }

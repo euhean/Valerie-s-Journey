@@ -11,18 +11,17 @@ public static class GameConstants
     public const float PLAYER_STOP_THRESHOLD = 0.02f; // 0.01–0.04
     public const float PLAYER_DEADZONE_ENTER = 0.08f; // 0.06–0.10
     public const float PLAYER_DEADZONE_EXIT = 0.12f;  // 0.10–0.14
+    public const float PLAYER_SPEED = 2f;
+    public const float PLAYER_ACCELERATION = 8f;
+    public const float AIM_THRESHOLD = 0.01f;
+    public const float WEAPON_AIM_THRESHOLD = 0.1f;
+
     // Combat Constants
     public const float BASIC_DAMAGE = 5f;
     public const float STRONG_DAMAGE = 20f;
     public const int COMBO_STREAK_FOR_STRONG = 4;
     public const float ATTACK_VISUAL_DURATION = 0.2f;
     public const float ATTACK_COOLDOWN = 0.15f;
-
-    // Movement Constants
-    public const float PLAYER_SPEED = 2f;
-    public const float PLAYER_ACCELERATION = 8f;
-    public const float AIM_THRESHOLD = 0.01f;
-    public const float WEAPON_AIM_THRESHOLD = 0.1f;
 
     // Camera Constants
     public const float CAMERA_SMOOTH_TIME = 0.3f;
