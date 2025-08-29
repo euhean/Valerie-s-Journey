@@ -25,7 +25,6 @@ public abstract class Entity : MonoBehaviour
 
     public float health { get; protected set; }
 
-    // Helper properties
     public bool IsActiveAndOnDuty => currentState == EntityState.ALIVE && onDuty;
     public bool CanTakeDamage => currentState == EntityState.ALIVE;
 

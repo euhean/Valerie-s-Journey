@@ -11,6 +11,7 @@ public class Enemy : Entity
     public Color deadColor = GameConstants.ENEMY_DEAD_COLOR;
     public Color hitFlashColor = GameConstants.HIT_FLASH_COLOR;
     public float hitFlashDuration = GameConstants.HIT_FLASH_DURATION;
+    public Player playerTarget;
 
     /// <summary>
     /// Enemies are static dummy targets - use kinematic rigidbodies
@@ -27,6 +28,15 @@ public class Enemy : Entity
         // Start in off-duty state (static dummy)
         SetDutyState(false);
     }
+
+    private void Start()
+    {
+        playerTarget = GameManager.Instance?.MainPlayer ?? FindObjectOfType<Player>();
+        EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
+    }
+
+    private void OnPlayerSpawned(PlayerSpawnedEvent e) { playerTarget = e.player; }
+    private void OnDestroy() { EventBus.Instance.Unsubscribe<PlayerSpawnedEvent>(OnPlayerSpawned); }
 
     public override void TakeDamage(float amount)
     {
