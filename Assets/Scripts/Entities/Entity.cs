@@ -19,11 +19,11 @@ public abstract class Entity : MonoBehaviour
     public bool onDuty = false;
 
     [Header("Components")]
-    public Rigidbody2D rb2D { get; private set; }
-    public SpriteRenderer spriteRenderer { get; private set; }
-    public BoxCollider2D boxCollider { get; private set; }
+    public Rigidbody2D Rb2D { get; private set; }
+    public SpriteRenderer SpriteRenderer { get; private set; }
+    public BoxCollider2D BoxCollider { get; private set; }
 
-    public float health { get; protected set; }
+    public float Health { get; protected set; }
 
     public bool IsActiveAndOnDuty => currentState == EntityState.ALIVE && onDuty;
     public bool CanTakeDamage => currentState == EntityState.ALIVE;
@@ -31,12 +31,12 @@ public abstract class Entity : MonoBehaviour
     protected virtual void Awake()
     {
         // Cache required components
-        rb2D = GetComponent<Rigidbody2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        boxCollider = GetComponent<BoxCollider2D>();
+        Rb2D = GetComponent<Rigidbody2D>();
+        SpriteRenderer = GetComponent<SpriteRenderer>();
+        BoxCollider = GetComponent<BoxCollider2D>();
 
         // Initialize health
-        health = maxHealth;
+        Health = maxHealth;
 
         // Auto-configure components to work together
         ComponentHelper.AutoConfigureEntity(this, IsStaticEntity());
@@ -52,10 +52,10 @@ public abstract class Entity : MonoBehaviour
     {
         if (!CanTakeDamage) return;
 
-        health -= amount;
-        DebugHelper.LogCombat($"{gameObject.name} took {amount} damage ({health:F1}/{maxHealth:F1} HP)");
+        Health -= amount;
+        DebugHelper.LogCombat($"{gameObject.name} took {amount} damage ({Health:F1}/{maxHealth:F1} HP)");
 
-        if (health <= 0f) Die();
+        if (Health <= 0f) Die();
     }
 
     public virtual void SetState(EntityState newState)
@@ -88,13 +88,13 @@ public abstract class Entity : MonoBehaviour
         SetState(EntityState.DEAD);
 
         // Disable collider but keep the GameObject for death feedback
-        if (boxCollider != null) boxCollider.enabled = false;
+        if (BoxCollider != null) BoxCollider.enabled = false;
 
         // Stop physics
-        if (rb2D != null)
+        if (Rb2D != null)
         {
-            rb2D.linearVelocity = Vector2.zero;
-            rb2D.bodyType = RigidbodyType2D.Kinematic;
+            Rb2D.linearVelocity = Vector2.zero;
+            Rb2D.bodyType = RigidbodyType2D.Kinematic;
         }
     }
 }
