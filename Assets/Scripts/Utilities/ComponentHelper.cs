@@ -22,15 +22,23 @@ public static class ComponentHelper
             DebugHelper.LogWarning("ComponentHelper: Cannot auto-configure - SpriteRenderer has no sprite assigned");
             return;
         }
-        // Get sprite bounds in local space (without transform scaling)
-        Bounds spriteBounds = spriteRenderer.sprite.bounds;
-        // Set collider size to match sprite bounds (in local space)
-        boxCollider.size = spriteBounds.size;
-        // Center the collider (offset from transform center)
-        Vector3 spriteCenter = spriteRenderer.sprite.bounds.center;
-        boxCollider.offset = spriteCenter;
 
-        // Only log if debugging component setup
+        // Get sprite bounds in local space (sprite.bounds is in sprite-local units)
+        Bounds spriteBounds = spriteRenderer.sprite.bounds;
+
+        // BoxCollider2D.size/offset are Vector2
+        Vector2 size = (Vector2)spriteBounds.size;
+        Vector2 center = (Vector2)spriteBounds.center;
+
+        boxCollider.size = size;
+        boxCollider.offset = center;
+
+        // Warn if transform is scaled (lossyScale != 1) since collider may not visually match in world space
+        if (spriteRenderer.transform.lossyScale != Vector3.one && DebugHelper.enableStateLogs)
+        {
+            DebugHelper.LogState($"ComponentHelper: Sprite has non-1 scale ({spriteRenderer.transform.lossyScale}). Collider set to sprite-local size; consider adjusting for scale if visuals mismatch.");
+        }
+
         if (DebugHelper.enableStateLogs)
             DebugHelper.LogState($"Auto-configured {boxCollider.name}: size={boxCollider.size}, offset={boxCollider.offset}");
     }
@@ -38,31 +46,35 @@ public static class ComponentHelper
     /// <summary>
     /// Sets up Rigidbody2D with sensible defaults for entities.
     /// </summary>
-    public static void ConfigureEntityRigidbody(Rigidbody2D rb2D, bool isStatic = false)
+    public static void ConfigureEntityRigidbody(Rigidbody2D rb, bool isStatic = false)
     {
-        if (rb2D == null)
+        if (rb == null)
         {
             DebugHelper.LogWarning("ComponentHelper: Cannot configure - missing Rigidbody2D");
             return;
         }
+
+        rb.gravityScale = 0f;
+
         if (isStatic)
         {
-            rb2D.bodyType = RigidbodyType2D.Kinematic;
-            rb2D.linearVelocity = Vector2.zero;
-            rb2D.angularVelocity = 0f;
-            rb2D.gravityScale = 0f; // No gravity for top-down
+            rb.bodyType = RigidbodyType2D.Kinematic;
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            rb.freezeRotation = true;
         }
         else
         {
-            rb2D.bodyType = RigidbodyType2D.Dynamic;
-            rb2D.gravityScale = 0f; // Top-down game, no gravity
-            rb2D.linearDamping = GameConstants.RIGIDBODY_LINEAR_DAMPING;
-            rb2D.angularDamping = GameConstants.RIGIDBODY_ANGULAR_DAMPING;
-            rb2D.freezeRotation = false; // Allow rotation for aiming
+            rb.bodyType = RigidbodyType2D.Dynamic;
+
+            rb.drag = GameConstants.RIGIDBODY_LINEAR_DAMPING;
+            rb.angularDrag = GameConstants.RIGIDBODY_ANGULAR_DAMPING;
+
+            rb.freezeRotation = false;
         }
-        // Only log summary if debugging component setup
+
         if (DebugHelper.enableStateLogs)
-            DebugHelper.LogState($"Configured Rigidbody2D for {rb2D.name}: type={rb2D.bodyType}, gravity={rb2D.gravityScale}");
+            DebugHelper.LogState($"Configured Rigidbody2D for {rb.name}: type={rb.bodyType}, gravity={rb.gravityScale}, drag={rb.drag}");
     }
 
     /// <summary>
@@ -76,12 +88,13 @@ public static class ComponentHelper
             DebugHelper.LogWarning("ComponentHelper: Cannot configure - entity is null");
             return;
         }
-        // Configure rigidbody
-        if (entity.rb2D != null) ConfigureEntityRigidbody(entity.rb2D, isStaticEntity);
-        // Auto-size collider to sprite
-        if (entity.spriteRenderer != null && entity.boxCollider != null)
-            AutoConfigureColliderToSprite(entity.spriteRenderer, entity.boxCollider);
-        // Only log summary if debugging component setup
+
+        // Use the property names from your Entity class (Rb2D, SpriteRenderer, BoxCollider)
+        if (entity.Rb2D != null) ConfigureEntityRigidbody(entity.Rb2D, isStaticEntity);
+
+        if (entity.SpriteRenderer != null && entity.BoxCollider != null)
+            AutoConfigureColliderToSprite(entity.SpriteRenderer, entity.BoxCollider);
+
         if (DebugHelper.enableStateLogs)
             DebugHelper.LogState($"Auto-configured all components for {entity.name}");
     }

@@ -20,16 +20,9 @@ public class GameManager : MonoBehaviour
 
     public enum GameState
     {
-        Boot,
-        MainScreen,
-        MenuSelector,
-        LevelPreload,
-        Cinematic,
-        DialogueScene,
-        LevelLoad,
-        CompletionScene,
-        ExitOrContinue,
-        Gameplay
+        Boot, MainScreen, MenuSelector, LevelPreload,
+        Cinematic, DialogueScene, LevelLoad,
+        CompletionScene, ExitOrContinue, Gameplay
     }
 
     [Header("Managers")]
