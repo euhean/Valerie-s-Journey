@@ -5,22 +5,18 @@ using UnityEngine;
 /// <summary>
 /// Handles attack timing and combo logic. Subscribes to the basic-attack input
 /// and uses TimeManager for on-beat checks. Works with Weapon to deal damage.
-///
-/// Improvements included:
-/// - idempotent Register/Unregister (safe to call multiple times)
-/// - events for combo progress and strong attack trigger
-/// - optional strong-aim locking during strong attack
-/// - optional combo decay based on beats without presses
-/// - ResetCombo() and AbortAttack() public APIs
 /// </summary>
 public class PlayerAttackController : MonoBehaviour
 {
+    #region Inspector
+
     [Header("Attack Timing")]
     public float attackCooldown = GameConstants.ATTACK_COOLDOWN; // min time between presses
 
     [Header("Strong Attack Options")]
     [Tooltip("If true, aiming will be locked for 'strongLockDuration' seconds when a strong attack triggers.")]
     public bool strongLocksAiming = false;
+
     [Tooltip("Seconds to lock aiming when a strong attack occurs (only if strongLocksAiming==true).")]
     public float strongLockDuration = 0.25f;
 
@@ -28,7 +24,10 @@ public class PlayerAttackController : MonoBehaviour
     [Tooltip("If > 0, the combo will auto-reset after this many beats without on-beat presses.")]
     public int comboDecayBeats = 0;
 
-    // runtime state
+    #endregion
+
+    #region Private State
+
     private double lastAttackDSP = -9999.0;
     private int onBeatStreak = 0;
     private int beatsSinceLastPress = 0;
@@ -40,9 +39,16 @@ public class PlayerAttackController : MonoBehaviour
     private bool isRegistered = false;
     private bool isStrongActive = false;
 
-    // Events for external UI/animation
-    public event Action<int> OnComboProgress;    // current streak (0..N)
+    #endregion
+
+    #region Events
+
+    public event Action<int> OnComboProgress; // current streak (0..N)
     public event Action OnStrongAttackTriggered;
+
+    #endregion
+
+    #region Unity Lifecycle
 
     private void Awake()
     {
@@ -51,28 +57,29 @@ public class PlayerAttackController : MonoBehaviour
             DebugHelper.LogWarning("PlayerAttackController: No Weapon component found in children!");
     }
 
+    #endregion
+
+    #region Registration
+
     /// <summary>
-    /// Safe, idempotent registration. If input/time are null it will defer subscription until they're provided.
+    /// Safe, idempotent registration. If input/time are null it defers subscription until provided.
     /// </summary>
     public void Register(InputManager input, TimeManager time)
     {
-        // If same pair already registered -> noop
+        // if already registered to same pair -> noop
         if (isRegistered && registeredInput == input && registeredTime == time) return;
 
-        // Unsubscribe previous if any
+        // unsubscribe previous if any
         if (isRegistered && registeredInput != null)
         {
-            try { registeredInput.OnBasicPressedDSP -= HandleAttackInput; }
-            catch { }
+            try { registeredInput.OnBasicPressedDSP -= HandleAttackInput; } catch { }
             if (registeredTime != null) registeredTime.OnBeat -= HandleBeat;
             isRegistered = false;
         }
 
-        // store refs (may be null)
         registeredInput = input;
-        registeredTime = time;
+        registeredTime  = time;
 
-        // Subscribe only when both are present
         if (registeredInput != null && registeredTime != null)
         {
             registeredInput.OnBasicPressedDSP += HandleAttackInput;
@@ -80,29 +87,33 @@ public class PlayerAttackController : MonoBehaviour
             isRegistered = true;
             DebugHelper.LogManager("PlayerAttackController: Registered to input/time.");
         }
-        else DebugHelper.LogManager("PlayerAttackController: Deferred registration (missing input/time).");
+        else
+        {
+            DebugHelper.LogManager("PlayerAttackController: Deferred registration (missing input/time).");
+        }
     }
 
     /// <summary>
-    /// Unregisters the current subscription if the passed input matches what we subscribed to.
-    /// Safe to call multiple times.
+    /// Unregisters if the passed input matches what we subscribed to. Safe to call multiple times.
     /// </summary>
     public void Unregister(InputManager input)
     {
-        if (!isRegistered) return;
-        if (registeredInput == null) return;
+        if (!isRegistered || registeredInput == null) return;
+        if (registeredInput != input) return;
 
-        if (registeredInput == input)
-        {
-            try { registeredInput.OnBasicPressedDSP -= HandleAttackInput; }
-            catch { }
-            if (registeredTime != null) registeredTime.OnBeat -= HandleBeat;
-            registeredInput = null;
-            registeredTime = null;
-            isRegistered = false;
-            DebugHelper.LogManager("PlayerAttackController: Unregistered.");
-        }
+        try { registeredInput.OnBasicPressedDSP -= HandleAttackInput; } catch { }
+        if (registeredTime != null) registeredTime.OnBeat -= HandleBeat;
+
+        registeredInput = null;
+        registeredTime  = null;
+        isRegistered    = false;
+
+        DebugHelper.LogManager("PlayerAttackController: Unregistered.");
     }
+
+    #endregion
+
+    #region Beat Handling
 
     private void HandleBeat(int beatIndex)
     {
@@ -115,25 +126,26 @@ public class PlayerAttackController : MonoBehaviour
         }
     }
 
+    #endregion
+
+    #region Input Handling
+
     private void HandleAttackInput(double dspTime)
     {
-        // Defensive checks
         if (registeredTime == null) return;
 
-        // cooldown (DSP-based)
+        // cooldown
         if (dspTime - lastAttackDSP < attackCooldown) return;
         lastAttackDSP = dspTime;
 
-        // ignore presses while strong attack locked
+        // ignore while strong lock active
         if (isStrongActive) return;
 
-        // reset beat decay counter
         beatsSinceLastPress = 0;
 
         bool onBeat = registeredTime.IsOnBeat(dspTime);
         if (!onBeat)
         {
-            // off-beat: immediate combo reset, still perform basic attack
             onBeatStreak = 0;
             OnComboProgress?.Invoke(onBeatStreak);
             DebugHelper.LogCombat("Off-beat attack - combo reset to 0");
@@ -141,7 +153,7 @@ public class PlayerAttackController : MonoBehaviour
             return;
         }
 
-        // on-beat -> progress combo
+        // on-beat
         onBeatStreak++;
         OnComboProgress?.Invoke(Mathf.Min(onBeatStreak, GameConstants.COMBO_STREAK_FOR_STRONG));
 
@@ -157,6 +169,10 @@ public class PlayerAttackController : MonoBehaviour
 
         BasicAttack(true);
     }
+
+    #endregion
+
+    #region Attacks
 
     private void BasicAttack(bool onBeat)
     {
@@ -182,10 +198,13 @@ public class PlayerAttackController : MonoBehaviour
 
     private IEnumerator StrongLockCoroutine(float duration)
     {
-        // Keep isStrongActive true during lock, preventing further presses
         yield return new WaitForSeconds(duration);
         isStrongActive = false;
     }
+
+    #endregion
+
+    #region Public Controls
 
     public void ResetCombo()
     {
@@ -201,6 +220,7 @@ public class PlayerAttackController : MonoBehaviour
     }
 
     public void CancelCurrentAttack() => AbortAttack();
-
     public int CurrentComboStreak => onBeatStreak;
+
+    #endregion
 }

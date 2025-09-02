@@ -12,19 +12,26 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public class GameManager : MonoBehaviour
 {
+    #region Singleton
     public static GameManager Instance { get; private set; }
+    #endregion
 
+    #region Inspector: Debug Tools
     [Header("Debug Tools")]
     public HitboxVisualizer hitboxVisualizer;
     public void SetHitboxVisualization(bool enabled) => hitboxVisualizer?.ToggleVisualization(enabled);
+    #endregion
 
+    #region Types
     public enum GameState
     {
         Boot, MainScreen, MenuSelector, LevelPreload,
         Cinematic, DialogueScene, LevelLoad,
         CompletionScene, ExitOrContinue, Gameplay
     }
+    #endregion
 
+    #region Inspector: Managers & Level
     [Header("Managers")]
     public InputManager inputManager;
     public TimeManager timeManager;
@@ -32,17 +39,22 @@ public class GameManager : MonoBehaviour
     [Header("Level")]
     [Tooltip("Assign LevelManager here (inspector)")]
     public LevelManager levelManager;
+    #endregion
 
+    #region Runtime State
     [Header("Auto Assigned")]
     public Player MainPlayer { get; private set; }
 
+    public GameState State { get; private set; } = GameState.Boot;
+    #endregion
+
+    #region Inspector: Auto-Configuration
     [Header("Auto-Configuration")]
     [Tooltip("If true, GameManager will automatically find managers and players in the scene")]
     public bool autoConfigureScene = true;
+    #endregion
 
-    public GameState State { get; private set; } = GameState.Boot;
-
-    #region Unity lifecycle
+    #region Unity Lifecycle
     private void Awake()
     {
         // singleton pattern
@@ -86,7 +98,7 @@ public class GameManager : MonoBehaviour
     }
     #endregion
 
-    #region Manager wiring & scene handling
+    #region Scene Handling & Lifecycle Wiring
     /// <summary>
     /// Clears cached scene-local refs and re-finds managers on scene load,
     /// then runs the same lifecycle wiring as Start. If the game is already
@@ -125,7 +137,7 @@ public class GameManager : MonoBehaviour
         timeManager ??= FindFirstObjectByType<TimeManager>();
         inputManager ??= FindFirstObjectByType<InputManager>();
         levelManager ??= FindFirstObjectByType<LevelManager>();
-        MainPlayer ??= FindFirstObjectByType<Player>();
+        MainPlayer   ??= FindFirstObjectByType<Player>();
 
         if (MainPlayer != null)
             DebugHelper.LogManager($"Auto-assigned MainPlayer: {MainPlayer.name}");
@@ -161,7 +173,7 @@ public class GameManager : MonoBehaviour
     }
     #endregion
 
-    #region Utilities & state
+    #region Utilities & State Transitions
     private void EnsureAudioListener()
     {
         AudioListener existingListener = FindFirstObjectByType<AudioListener>();

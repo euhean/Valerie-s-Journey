@@ -7,16 +7,23 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerMover2D), typeof(PlayerAttackController))]
 public class Player : Entity
 {
+    #region Inspector: Manager Refs
     [Header("Manager References")]
     public InputManager inputManager;
     public TimeManager timeManager;
+    #endregion
 
+    #region Inspector: Components
     [Header("Player Components")]
     public Weapon playerWeapon;
+    #endregion
 
+    #region Cached Components
     private PlayerMover2D mover;
     private PlayerAttackController attackController;
+    #endregion
 
+    #region Unity Lifecycle
     protected override void Awake()
     {
         base.Awake();
@@ -36,33 +43,33 @@ public class Player : Entity
         // Give mover the inputManager so it can run in FixedUpdate
         if (mover != null) mover.inputManager = inputManager;
 
-        // Self-register as main player with GameManager (if GameManager implements it)
+        // Self-register as main player
         GameManager.Instance?.RegisterPlayer(this);
 
         // Set duty state now that things are wired
         SetDutyState(true);
 
-        // Attempt to register attack controller; controller is idempotent and safe to call now
+        // Idempotent registration
         attackController?.Register(inputManager, timeManager);
     }
 
     private void OnEnable()
     {
-        // Safe: registration is idempotent in controller (will noop if already registered or if managers missing)
+        // Safe: will noop if already registered or managers missing
         attackController?.Register(inputManager, timeManager);
     }
 
     private void OnDisable()
     {
-        // Safe: Unregister will only unsubscribe if it previously subscribed to that exact input manager.
+        // Safe: only unsubscribes if it was subscribed to this input
         attackController?.Unregister(inputManager);
     }
+    #endregion
 
+    #region Duty / Aiming
     protected override void OnDutyStateChanged(bool fromDuty, bool toDuty)
     {
         base.OnDutyStateChanged(fromDuty, toDuty);
-
-        // Update weapon visual/active state
         playerWeapon?.SetOwnerDutyState(toDuty);
     }
 
@@ -74,8 +81,9 @@ public class Player : Entity
             playerWeapon.UpdateAiming(inputManager.Aim);
         }
     }
+    #endregion
 
-    // Ensure the player's attack combo resets if they take damage
+    #region Damage Handling
     public override void TakeDamage(float amount)
     {
         base.TakeDamage(amount);
@@ -84,10 +92,10 @@ public class Player : Entity
         attackController?.ResetCombo();
         attackController?.AbortAttack();
     }
+    #endregion
 
+    #region Public API
     // Method for GameManager to control player duty state
-    public void SetPlayerDuty(bool isOnDuty)
-    {
-        SetDutyState(isOnDuty);
-    }
+    public void SetPlayerDuty(bool isOnDuty) => SetDutyState(isOnDuty);
+    #endregion
 }
