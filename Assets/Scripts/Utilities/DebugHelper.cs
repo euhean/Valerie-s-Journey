@@ -9,7 +9,7 @@ using UnityEngine;
 /// </summary>
 public static class DebugHelper
 {
-    // ----- Flags (toggle at runtime from code or via tiny DebugSettings MonoBehaviour if you add one) -----
+    #region Flags (toggle at runtime from code or via tiny DebugSettings MonoBehaviour if you add one)
     public static bool enableCombatLogs = true;
     public static bool enableStateLogs = true;
     public static bool enableManagerLogs = true;
@@ -21,7 +21,9 @@ public static class DebugHelper
     // ----- Internal "log once" tracking to avoid spam -----
     private static readonly HashSet<string> _loggedOnceKeys = new HashSet<string>();
 
-    // ----- Utility ----------------------------------------------------------------
+    #endregion
+
+    #region Utility
 
     private static string Format(string category, string message)
     {
@@ -34,7 +36,9 @@ public static class DebugHelper
     private static void DoWarning(string formatted) => Debug.LogWarning(formatted);
     private static void DoError(string formatted) => Debug.LogError(formatted);
 
-    // ----- Public API (string) ---------------------------------------------------
+    #endregion
+
+    #region Public API (string)
 
     public static void LogCombat(string message)
     {
@@ -64,7 +68,9 @@ public static class DebugHelper
     public static void LogError(string message) => DoError(Format("ERROR", message));
     public static void LogForce(string message) => DoLog(Format("FORCE", message));
 
-    // ----- Lazy-eval overloads (avoid allocations when disabled) -----------------
+    #endregion
+
+    #region Lazy-eval overloads (avoid allocations when disabled)
 
     public static void LogCombat(Func<string> lazyMessage)
     {
@@ -83,7 +89,9 @@ public static class DebugHelper
         if (enableInputLogs && lazyMessage != null) Debug.Log("[INPUT] " + lazyMessage());
     }
 
-    // ----- Log-once helpers -----------------------------------------------------
+    #endregion
+
+    #region Log-once helpers
 
     /// <summary>Logs a warning once for the given key.</summary>
     public static void LogWarningOnce(string key, string message)
@@ -109,7 +117,9 @@ public static class DebugHelper
     /// <summary>Clear the "log once" memory (useful between scenes/tests).</summary>
     public static void ClearLogOnce() => _loggedOnceKeys.Clear();
 
-    // ----- Small convenience: toggle groups ------------------------------------
+    #endregion
+
+    #region Small convenience: toggle groups
 
     public static void SetAllDebug(bool on)
     {
@@ -118,4 +128,5 @@ public static class DebugHelper
         enableManagerLogs = on;
         enableInputLogs = on;
     }
+    #endregion
 }

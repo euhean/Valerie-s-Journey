@@ -7,24 +7,30 @@ using UnityEngine;
 /// </summary>
 public class Enemy : Entity
 {
+    #region Inspector: Visuals
     [Header("Enemy Visual Settings")]
     public Color aliveColor = GameConstants.ENEMY_ALIVE_COLOR;
-    public Color deadColor = GameConstants.ENEMY_DEAD_COLOR;
+    public Color deadColor  = GameConstants.ENEMY_DEAD_COLOR;
     public Color hitFlashColor = GameConstants.HIT_FLASH_COLOR;
     public float hitFlashDuration = GameConstants.HIT_FLASH_DURATION;
+    #endregion
 
+    #region Inspector: Patrol / Combat
     [Header("Patrol / Combat")]
     public Player playerTarget;
-    public float patrolSpeed = 1.5f;    
-    public float attackRange = 0.6f;          
-    public float attackDamage = 8f;           
-    public float attackCooldown = 1.0f;       
+    public float patrolSpeed   = 1.5f;
+    public float attackRange   = 0.6f;
+    public float attackDamage  = 8f;
+    public float attackCooldown = 1.0f;
+    #endregion
 
+    #region Runtime State
     private Coroutine patrolCoroutine;
     private float lastAttackTime = -999f;
     protected override bool IsStaticEntity() => true;
+    #endregion
 
-    #region Unity lifecycle
+    #region Unity Lifecycle
     protected override void Awake()
     {
         base.Awake();
@@ -39,21 +45,30 @@ public class Enemy : Entity
         EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
     }
 
-    private void OnPlayerSpawned(PlayerSpawnedEvent e) => playerTarget = e.player;
-    private void OnDestroy() => EventBus.Instance.Unsubscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
+    private void OnDestroy()
+    {
+        EventBus.Instance.Unsubscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
+    }
+    #endregion
 
+    #region Event Handlers
+    private void OnPlayerSpawned(PlayerSpawnedEvent e) => playerTarget = e.player;
+    #endregion
+
+    #region Combat / Damage
     public override void TakeDamage(float amount)
     {
         if (currentState == EntityState.DEAD) return;
+
         base.TakeDamage(amount);
 
         bool isStrongAttack = amount >= GameConstants.STRONG_DAMAGE;
         if (currentState != EntityState.DEAD)
         {
             if (isStrongAttack)
-                AnimationHelper.ShowStrongHitShake(transform, spriteRenderer, hitFlashColor, hitFlashDuration);
+                AnimationHelper.ShowStrongHitShake(transform, SpriteRenderer, hitFlashColor, hitFlashDuration);
             else
-                AnimationHelper.ShowHitFlash(spriteRenderer, hitFlashColor, hitFlashDuration);
+                AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration);
         }
     }
 
@@ -63,7 +78,9 @@ public class Enemy : Entity
         UpdateVisuals();
         if (to == EntityState.DEAD) ShowDeathLabel();
     }
+    #endregion
 
+    #region Duty / Patrol Toggle
     protected override void OnDutyStateChanged(bool fromDuty, bool toDuty)
     {
         base.OnDutyStateChanged(fromDuty, toDuty);
@@ -79,11 +96,13 @@ public class Enemy : Entity
             DebugHelper.LogState($"{gameObject.name} is now off duty (static)");
         }
     }
+    #endregion
 
+    #region Visuals
     private void UpdateVisuals()
     {
-        if (spriteRenderer == null) return;
-        spriteRenderer.color = (currentState == EntityState.ALIVE) ? aliveColor : deadColor;
+        if (SpriteRenderer == null) return;
+        SpriteRenderer.color = (currentState == EntityState.ALIVE) ? aliveColor : deadColor;
     }
 
     private void ShowDeathLabel()
@@ -92,7 +111,7 @@ public class Enemy : Entity
     }
     #endregion
 
-    #region Patrol / Combat behavior
+    #region Patrol / Melee
     public void StartPatrol()
     {
         if (patrolCoroutine != null) return;
@@ -102,16 +121,14 @@ public class Enemy : Entity
 
     public void StopPatrol()
     {
-        if (patrolCoroutine != null)
-        {
-            StopCoroutine(patrolCoroutine);
-            patrolCoroutine = null;
-        }
+        if (patrolCoroutine == null) return;
+        StopCoroutine(patrolCoroutine);
+        patrolCoroutine = null;
     }
 
     private IEnumerator PatrolRoutine()
     {
-        if (rb2D == null) yield break;
+        if (Rb2D == null) yield break;
 
         while (onDuty && currentState == EntityState.ALIVE)
         {
@@ -122,16 +139,19 @@ public class Enemy : Entity
                 continue;
             }
 
-            Vector2 toTarget = (playerTarget.transform.position - transform.position);
+            Vector2 toTarget = playerTarget.transform.position - transform.position;
             float distance = toTarget.magnitude;
 
             if (distance > attackRange)
             {
                 Vector2 dir = toTarget.normalized;
-                Vector2 move = (Vector2)rb2D.position + dir * (patrolSpeed * Time.deltaTime);
-                rb2D.MovePosition(move);
+                Vector2 next = (Vector2)Rb2D.position + dir * (patrolSpeed * Time.deltaTime);
+                Rb2D.MovePosition(next);
             }
-            else TryAttack();
+            else
+            {
+                TryAttack();
+            }
 
             yield return null;
         }
@@ -149,7 +169,7 @@ public class Enemy : Entity
         playerTarget.TakeDamage(attackDamage);
         DebugHelper.LogCombat($"{gameObject.name} hit {playerTarget.name} for {attackDamage} damage");
 
-        AnimationHelper.ShowHitFlash(spriteRenderer, hitFlashColor, hitFlashDuration);
+        AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration);
     }
+    #endregion
 }
-#endregion
