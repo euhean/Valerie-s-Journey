@@ -110,7 +110,7 @@ public class Weapon : MonoBehaviour
 
         float damage = currentAttackIsStrong ? strongDamage : basicDamage;
         string attackType = currentAttackIsStrong ? "STRONG" : "basic";
-        DebugHelper.LogCombat($"Weapon hit {targetEntity.name} with {attackType} attack ({damage} damage)");
+        DebugHelper.LogCombat(() => $"Weapon hit {targetEntity.name} with {attackType} attack ({damage} damage)");
         targetEntity.TakeDamage(damage);
         hitEntitiesThisAttack.Add(targetEntity);
     }

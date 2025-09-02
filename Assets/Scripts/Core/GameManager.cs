@@ -187,7 +187,7 @@ public class GameManager : MonoBehaviour
     {
         if (p == null) return;
         MainPlayer = p;
-        DebugHelper.LogManager($"MainPlayer registered: {p.name}");
+        DebugHelper.LogManager(() => $"MainPlayer registered: {p.name}");
         EventBus.Instance.Publish(new PlayerSpawnedEvent { player = p });
     }
 

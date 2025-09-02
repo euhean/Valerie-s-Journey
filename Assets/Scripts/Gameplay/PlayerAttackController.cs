@@ -149,7 +149,7 @@ public class PlayerAttackController : MonoBehaviour
         {
             onBeatStreak = 0;
             OnComboProgress?.Invoke(onBeatStreak);
-            DebugHelper.LogCombat($"STRONG ATTACK triggered after {GameConstants.COMBO_STREAK_FOR_STRONG}-hit combo!");
+            DebugHelper.LogCombat(() => $"STRONG ATTACK triggered after {GameConstants.COMBO_STREAK_FOR_STRONG}-hit combo!");
             StrongAttack();
             OnStrongAttackTriggered?.Invoke();
             return;
