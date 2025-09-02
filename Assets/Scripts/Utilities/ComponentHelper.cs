@@ -40,7 +40,7 @@ public static class ComponentHelper
         }
 
         if (DebugHelper.enableStateLogs)
-            DebugHelper.LogState($"Auto-configured {boxCollider.name}: size={boxCollider.size}, offset={boxCollider.offset}");
+            DebugHelper.LogState(() => $"Auto-configured {boxCollider.name}: size={boxCollider.size}, offset={boxCollider.offset}");
     }
 
     /// <summary>
@@ -74,7 +74,7 @@ public static class ComponentHelper
         }
 
         if (DebugHelper.enableStateLogs)
-            DebugHelper.LogState($"Configured Rigidbody2D for {rb.name}: type={rb.bodyType}, gravity={rb.gravityScale}, drag={rb.drag}");
+            DebugHelper.LogState(() => $"Configured Rigidbody2D for {rb.name}: type={rb.bodyType}, gravity={rb.gravityScale}, drag={rb.drag}");
     }
 
     /// <summary>

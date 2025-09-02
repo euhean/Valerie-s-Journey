@@ -53,7 +53,7 @@ public abstract class Entity : MonoBehaviour
         if (!CanTakeDamage) return;
 
         Health -= amount;
-        DebugHelper.LogCombat($"{gameObject.name} took {amount} damage ({Health:F1}/{maxHealth:F1} HP)");
+        DebugHelper.LogCombat(() => $"{gameObject.name} took {amount} damage ({Health:F1}/{maxHealth:F1} HP)");
 
         if (Health <= 0f) Die();
     }
