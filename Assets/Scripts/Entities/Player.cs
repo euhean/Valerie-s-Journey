@@ -92,6 +92,26 @@ public class Player : Entity
         attackController?.ResetCombo();
         attackController?.AbortAttack();
     }
+
+    protected override void Die()
+    {
+        DebugHelper.LogState($"{gameObject.name} died!");
+        SetState(EntityState.DEAD);
+
+        // Disable collider and stop physics immediately
+        if (BoxCollider != null) BoxCollider.enabled = false;
+        if (Rb2D != null)
+        {
+            Rb2D.linearVelocity = Vector2.zero;
+            Rb2D.bodyType = RigidbodyType2D.Kinematic;
+        }
+
+        // Set player off duty to stop all interactions
+        SetDutyState(false);
+
+        // Trigger death event instead of destroying the player
+        EventBus.Instance?.Publish(new PlayerDiedEvent { player = this });
+    }
     #endregion
 
     #region Public API

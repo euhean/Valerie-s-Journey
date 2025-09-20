@@ -7,6 +7,7 @@ using UnityEngine;
 /// </summary>
 public class Enemy : Entity
 {
+    private static WaitForSeconds _waitForSeconds0_25 = new(0.25f);
     #region Inspector: Visuals
     [Header("Enemy Visual Settings")]
     public Color aliveColor = GameConstants.ENEMY_ALIVE_COLOR;
@@ -36,12 +37,12 @@ public class Enemy : Entity
         base.Awake();
         gameObject.tag = "Enemy";
         UpdateVisuals();
-        SetDutyState(false);
+        SetDutyState(true); // Start enemies on patrol duty
     }
 
     private void Start()
     {
-        playerTarget ??= GameManager.Instance?.MainPlayer ?? FindObjectOfType<Player>();
+        playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
         EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
     }
 
@@ -115,7 +116,7 @@ public class Enemy : Entity
     public void StartPatrol()
     {
         if (patrolCoroutine != null) return;
-        playerTarget ??= GameManager.Instance?.MainPlayer ?? FindObjectOfType<Player>();
+        playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
         patrolCoroutine = StartCoroutine(PatrolRoutine());
     }
 
@@ -134,8 +135,8 @@ public class Enemy : Entity
         {
             if (playerTarget == null)
             {
-                playerTarget = GameManager.Instance?.MainPlayer ?? FindObjectOfType<Player>();
-                yield return new WaitForSeconds(0.25f);
+                playerTarget = GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
+                yield return _waitForSeconds0_25;
                 continue;
             }
 

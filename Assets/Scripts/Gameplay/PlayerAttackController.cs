@@ -8,6 +8,11 @@ using UnityEngine;
 /// </summary>
 public class PlayerAttackController : MonoBehaviour
 {
+    #region Cached WaitForSeconds
+    private static WaitForSeconds _strongLockWait025 = new WaitForSeconds(0.25f);
+    private static WaitForSeconds _strongLockWait05 = new WaitForSeconds(0.5f);
+    #endregion
+
     #region Inspector
 
     [Header("Attack Timing")]
@@ -35,6 +40,7 @@ public class PlayerAttackController : MonoBehaviour
     private InputManager registeredInput;
     private TimeManager registeredTime;
     private Weapon playerWeapon;
+    private Entity ownerEntity;
 
     private bool isRegistered = false;
     private bool isStrongActive = false;
@@ -55,6 +61,10 @@ public class PlayerAttackController : MonoBehaviour
         playerWeapon = GetComponentInChildren<Weapon>(true);
         if (playerWeapon == null)
             DebugHelper.LogWarning("PlayerAttackController: No Weapon component found in children!");
+        
+        ownerEntity = GetComponent<Entity>();
+        if (ownerEntity == null)
+            DebugHelper.LogWarning("PlayerAttackController: No Entity component found!");
     }
 
     #endregion
@@ -134,6 +144,12 @@ public class PlayerAttackController : MonoBehaviour
     {
         if (registeredTime == null) return;
 
+        // Don't attack if player is dead or off duty
+        if (ownerEntity != null && (ownerEntity.currentState != Entity.EntityState.ALIVE || !ownerEntity.onDuty))
+        {
+            return;
+        }
+
         // cooldown
         if (dspTime - lastAttackDSP < attackCooldown) return;
         lastAttackDSP = dspTime;
@@ -198,7 +214,14 @@ public class PlayerAttackController : MonoBehaviour
 
     private IEnumerator StrongLockCoroutine(float duration)
     {
-        yield return new WaitForSeconds(duration);
+        // Use cached WaitForSeconds for common durations
+        if (duration == 0.25f)
+            yield return _strongLockWait025;
+        else if (duration == 0.5f)
+            yield return _strongLockWait05;
+        else
+            yield return new WaitForSeconds(duration);
+        
         isStrongActive = false;
     }
 

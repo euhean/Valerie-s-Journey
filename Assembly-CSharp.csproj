@@ -42,7 +42,7 @@
     <UnityVersion>6000.1.15f1</UnityVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Analyzer Include="C:\Users\grane\.vscode\extensions\visualstudiotoolsforunity.vstuc-1.1.2\Analyzers\Microsoft.Unity.Analyzers.dll" />
+    <Analyzer Include="C:\Users\grane\.vscode\extensions\visualstudiotoolsforunity.vstuc-1.1.3\Analyzers\Microsoft.Unity.Analyzers.dll" />
     <Analyzer Include="E:\unity\6000.1.15f1\Editor\Data\Tools\Unity.SourceGenerators\Unity.SourceGenerators.dll" />
     <Analyzer Include="E:\unity\6000.1.15f1\Editor\Data\Tools\Unity.SourceGenerators\Unity.Properties.SourceGenerator.dll" />
     <Analyzer Include="E:\unity\6000.1.15f1\Editor\Data\Tools\Unity.SourceGenerators\Unity.UIToolkit.SourceGenerator.dll" />
@@ -53,15 +53,16 @@
     <Compile Include="Assets\Scripts\Utilities\GameConstants.cs" />
     <Compile Include="Assets\Scripts\Gameplay\PlayerMover2D.cs" />
     <Compile Include="Assets\Scripts\Core\BaseManager.cs" />
+    <Compile Include="Assets\Scripts\Core\Events.cs" />
     <Compile Include="Assets\Scripts\Managers\TimeManager.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Weapon.cs" />
     <Compile Include="Assets\Scripts\Gameplay\CameraController2D.cs" />
     <Compile Include="Assets\Scripts\Utilities\ComponentHelper.cs" />
     <Compile Include="Assets\Scripts\Entities\Enemy.cs" />
+    <Compile Include="Assets\Scripts\Managers\LevelManager.cs" />
     <Compile Include="Assets\Scripts\Gameplay\PlayerAttackController.cs" />
-    <Compile Include="Assets\Scripts\Managers\Metronome.cs" />
     <Compile Include="Assets\Scripts\Core\EventBus.cs" />
-    <Compile Include="Assets\Scripts\Utilities\HitboxVisualizer.cs" />
+    <Compile Include="Assets\Scripts\Utilities\HitboxGizmos.cs" />
     <Compile Include="Assets\Scripts\Managers\InputManager.cs" />
     <Compile Include="Assets\Scripts\Core\GameManager.cs" />
     <Compile Include="Assets\Scripts\Utilities\AnimationHelper.cs" />
