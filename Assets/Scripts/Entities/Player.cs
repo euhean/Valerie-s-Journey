@@ -86,7 +86,15 @@ public class Player : Entity
     #region Damage Handling
     public override void TakeDamage(float amount)
     {
+        if (currentState == EntityState.DEAD) return;
+
         base.TakeDamage(amount);
+
+        // Show damage flash effect for better combat clarity
+        if (currentState != EntityState.DEAD)
+        {
+            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, GameConstants.HIT_FLASH_DURATION);
+        }
 
         // Reset combos and abort any ongoing strong-lock when hit
         attackController?.ResetCombo();

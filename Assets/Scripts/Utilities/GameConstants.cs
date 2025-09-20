@@ -28,16 +28,17 @@ public static class GameConstants
     public const float CAMERA_Z_OFFSET = -10f;
 
     // Visual Feedback Constants
-    public const float HIT_FLASH_DURATION = 0.1f;
+    public const float HIT_FLASH_DURATION = 0.2f; // Increased from 0.1f for more noticeable flash
     public const float SPRITE_ROTATION_OFFSET = -90f; // For sprite forward direction
     public const float TEXT_OFFSET_Y = 0.5f;
     public const float TEXT_DURATION = 1f;
     public const float COMBO_TEXT_DURATION = 0.8f;
-    public const float SHAKE_INTENSITY = 0.1f;
-    public const float SHAKE_DURATION_MULTIPLIER = 1.5f;
+    public const float SHAKE_INTENSITY = 0.15f; // Increased from 0.1f for more noticeable shake
+    public const float SHAKE_DURATION_MULTIPLIER = 2f; // Increased from 1.5f for longer shake
 
     // Entity Constants
-    public const float DEFAULT_MAX_HEALTH = 100f;
+    public const float DEFAULT_MAX_HEALTH = 100f; // Player health
+    public const float ENEMY_MAX_HEALTH = 40f; // Balanced for perfect combo (4×5 + 20 = 40 damage)
     public const float RIGIDBODY_LINEAR_DAMPING = 6f;
     public const float RIGIDBODY_ANGULAR_DAMPING = 6f;
 
@@ -48,5 +49,7 @@ public static class GameConstants
     public static readonly Color ENEMY_ALIVE_COLOR = Color.red;
     public static readonly Color ENEMY_DEAD_COLOR = Color.gray;
     public static readonly Color HIT_FLASH_COLOR = Color.white;
+    public static readonly Color PLAYER_DAMAGE_FLASH_COLOR = new(1f, 0.3f, 0.3f); // Bright red for player damage
+    public static readonly Color ENEMY_DAMAGE_FLASH_COLOR = new(1f, 1f, 0.3f); // Bright yellow for enemy damage
     public static readonly Color ORANGE_COLOR = new(1f, 0.5f, 0f);
 }

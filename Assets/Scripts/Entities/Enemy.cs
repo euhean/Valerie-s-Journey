@@ -8,12 +8,18 @@ using UnityEngine;
 public class Enemy : Entity
 {
     private static WaitForSeconds _waitForSeconds0_25 = new(0.25f);
+    
+    #region Inspector: Health Settings
+    [Header("Enemy Health Settings")]
+    public new float maxHealth = GameConstants.ENEMY_MAX_HEALTH; // Balanced for perfect combo (40 damage)
+    #endregion
+    
     #region Inspector: Visuals
     [Header("Enemy Visual Settings")]
     public Color aliveColor = GameConstants.ENEMY_ALIVE_COLOR;
     public Color deadColor  = GameConstants.ENEMY_DEAD_COLOR;
-    public Color hitFlashColor = GameConstants.HIT_FLASH_COLOR;
-    public float hitFlashDuration = GameConstants.HIT_FLASH_DURATION;
+    public Color hitFlashColor = GameConstants.ENEMY_DAMAGE_FLASH_COLOR; // More noticeable bright yellow
+    public float hitFlashDuration = GameConstants.HIT_FLASH_DURATION; // Now 0.2f for longer visibility
     #endregion
 
     #region Inspector: Patrol / Combat
