@@ -14,6 +14,7 @@ public class PlayerMover2D : MonoBehaviour
     private Rigidbody2D rb;
     private Vector2 velocity;
     private bool inDeadzone;
+    private Entity ownerEntity;
     #endregion
 
     #region Unity
@@ -21,10 +22,20 @@ public class PlayerMover2D : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        ownerEntity = GetComponent<Entity>();
     }
 
     private void FixedUpdate()
     {
+        // Don't move if player is dead or off duty
+        if (ownerEntity != null && (ownerEntity.currentState != Entity.EntityState.ALIVE || !ownerEntity.onDuty))
+        {
+            // Stop movement if player is not supposed to move
+            velocity = Vector2.MoveTowards(velocity, Vector2.zero, GameConstants.PLAYER_DECELERATION * Time.fixedDeltaTime);
+            rb.MovePosition(rb.position + velocity * Time.fixedDeltaTime);
+            return;
+        }
+
         // Input
         Vector2 raw = (inputManager != null) ? inputManager.Move : Vector2.zero;
         float mag = raw.magnitude;

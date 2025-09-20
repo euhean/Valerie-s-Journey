@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -69,15 +70,30 @@ public abstract class Entity : MonoBehaviour
         DebugHelper.LogState($"{gameObject.name} died!");
         SetState(EntityState.DEAD);
 
-        // Disable collider but keep the GameObject for death feedback
+        // Disable collider immediately to stop interactions
         if (BoxCollider != null) BoxCollider.enabled = false;
 
         // Stop physics
         if (Rb2D != null)
         {
-            Rb2D.velocity = Vector2.zero;     // (alias of linearVelocity in newer Unity versions)
+            Rb2D.linearVelocity = Vector2.zero;
             Rb2D.bodyType = RigidbodyType2D.Kinematic;
         }
+
+        // Start death sequence: play animation then destroy
+        StartCoroutine(DeathSequence());
+    }
+
+    private System.Collections.IEnumerator DeathSequence()
+    {
+        // TODO: Play death animation here
+        // yield return new WaitForSeconds(deathAnimationDuration);
+        
+        // For now, use text duration as placeholder for death animation timing
+        yield return new WaitForSeconds(GameConstants.TEXT_DURATION);
+
+        // Destroy the game object after animation completes
+        Destroy(gameObject);
     }
     #endregion
 

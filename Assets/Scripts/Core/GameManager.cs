@@ -16,12 +16,6 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
     #endregion
 
-    #region Inspector: Debug Tools
-    [Header("Debug Tools")]
-    public HitboxVisualizer hitboxVisualizer;
-    public void SetHitboxVisualization(bool enabled) => hitboxVisualizer?.ToggleVisualization(enabled);
-    #endregion
-
     #region Types
     public enum GameState
     {

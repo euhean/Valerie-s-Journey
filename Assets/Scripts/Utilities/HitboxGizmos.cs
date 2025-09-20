@@ -36,8 +36,8 @@ public class HitboxGizmos : MonoBehaviour
     /// </summary>
     public void RefreshCache()
     {
-        cached2D = FindObjectsOfType<Collider2D>(true);
-        cached3D = FindObjectsOfType<Collider>(true);
+        cached2D = FindObjectsByType<Collider2D>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        cached3D = FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
     }
 
     private void OnDrawGizmos()

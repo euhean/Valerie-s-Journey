@@ -5,6 +5,10 @@ public class PlayerSpawnedEvent {
     public Player player;
 }
 
+public class PlayerDiedEvent {
+    public Player player;
+}
+
 public class EnemySpawnedEvent {
     public Enemy enemy;
 }

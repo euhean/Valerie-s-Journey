@@ -46,10 +46,17 @@ public class TimeManager : BaseManager
         if (metronomeAudioSource == null)
         {
             metronomeAudioSource = gameObject.GetComponent<AudioSource>();
-            metronomeAudioSource ??= gameObject.AddComponent<AudioSource>();
-            metronomeAudioSource.playOnAwake = false;
-            metronomeAudioSource.clip = metronomeClip;
-            metronomeAudioSource.volume = metronomeVolume;
+            if (metronomeAudioSource == null)
+            {
+                metronomeAudioSource = gameObject.AddComponent<AudioSource>();
+            }
+            
+            if (metronomeAudioSource != null)
+            {
+                metronomeAudioSource.playOnAwake = false;
+                metronomeAudioSource.clip = metronomeClip;
+                metronomeAudioSource.volume = metronomeVolume;
+            }
         }
     }
 

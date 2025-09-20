@@ -1,4 +1,6 @@
 using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Spawns player/enemies at inspector-defined points; publishes spawn events.
@@ -17,6 +19,7 @@ public class LevelManager : BaseManager
 
     #region Private
     bool isRunning = false;
+    private GameObject deathScreenCanvas;
     #endregion
 
     #region Lifecycle
@@ -37,6 +40,7 @@ public class LevelManager : BaseManager
     {
         DebugHelper.LogManager("LevelManager.BindEvents()");
         EventBus.Instance?.Subscribe<GameplayEvent>(OnGameplayEvent);
+        EventBus.Instance?.Subscribe<PlayerDiedEvent>(OnPlayerDied);
     }
 
     public override void StartRuntime()
@@ -60,6 +64,7 @@ public class LevelManager : BaseManager
     {
         DebugHelper.LogManager("LevelManager.Teardown()");
         EventBus.Instance?.Unsubscribe<GameplayEvent>(OnGameplayEvent);
+        EventBus.Instance?.Unsubscribe<PlayerDiedEvent>(OnPlayerDied);
         isRunning = false;
     }
     #endregion
@@ -67,6 +72,12 @@ public class LevelManager : BaseManager
     #region Events
     private void OnGameplayEvent(GameplayEvent e)
         => DebugHelper.LogManager($"LevelManager received GameplayEvent: inCombat={e.inCombat}");
+
+    private void OnPlayerDied(PlayerDiedEvent e)
+    {
+        DebugHelper.LogManager($"Player {e.player.name} died - showing death screen");
+        ShowDeathScreen();
+    }
     #endregion
 
     #region Spawning
@@ -96,6 +107,54 @@ public class LevelManager : BaseManager
     {
         if (enemySpawnPoints == null || enemySpawnPoints.Length == 0) return;
         SpawnEnemy(prefabIndex, enemySpawnPoints[0].position);
+    }
+    #endregion
+
+    #region Death Screen UI
+    private void ShowDeathScreen()
+    {
+        if (deathScreenCanvas != null) return; // Already showing
+
+        // Create Canvas using ComponentHelper
+        GameObject canvasGO = ComponentHelper.CreateFullScreenCanvas("DeathScreenCanvas");
+
+        // Create background panel
+        Color backgroundColor = new Color(0, 0, 0, 0.8f); // Semi-transparent black
+        GameObject panelGO = ComponentHelper.CreateFullScreenPanel(canvasGO, "DeathPanel", backgroundColor);
+
+        // Create title text
+        ComponentHelper.CreateText(panelGO, "DeathTitle", "GAME OVER", 48, Color.red, 
+            TextAnchor.MiddleCenter, new Vector2(0, 0.6f), new Vector2(1, 0.8f));
+
+        // Create Restart button
+        Color buttonColor = new Color(0.3f, 0.3f, 0.3f, 0.9f);
+        ComponentHelper.CreateButton(panelGO, "RestartButton", "RESTART", buttonColor,
+            new Vector2(0.2f, 0.3f), new Vector2(0.4f, 0.4f), RestartGame);
+
+        // Create Exit button
+        ComponentHelper.CreateButton(panelGO, "ExitButton", "EXIT", buttonColor,
+            new Vector2(0.6f, 0.3f), new Vector2(0.8f, 0.4f), ExitGame);
+
+        // Set up gamepad navigation using Unity's built-in system
+        ComponentHelper.SetupUINavigation(panelGO);
+
+        deathScreenCanvas = canvasGO;
+    }
+
+    private void RestartGame()
+    {
+        DebugHelper.LogManager("Restarting game...");
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    private void ExitGame()
+    {
+        DebugHelper.LogManager("Exiting game...");
+        #if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+        #else
+        Application.Quit();
+        #endif
     }
     #endregion
 }

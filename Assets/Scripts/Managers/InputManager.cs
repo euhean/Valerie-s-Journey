@@ -12,12 +12,20 @@ public class InputManager : BaseManager
     public InputActionReference moveAction;   // Vector2
     public InputActionReference aimAction;    // Vector2
     public InputActionReference basicAction;  // Button (South)
+    
+    [Header("UI Navigation Actions")]
+    public InputActionReference navigateAction; // Vector2 (for UI navigation)
+    public InputActionReference submitAction;   // Button (A/South)
+    public InputActionReference cancelAction;   // Button (B/East)
     #endregion
 
     #region Public State
     public Vector2 Move { get; private set; }
     public Vector2 Aim  { get; private set; }
+    public Vector2 Navigate { get; private set; }
     public event Action<double> OnBasicPressedDSP;
+    public event System.Action OnSubmitPressed;
+    public event System.Action OnCancelPressed;
     #endregion
 
     #region Private
@@ -38,17 +46,24 @@ public class InputManager : BaseManager
         moveAction?.action.Disable();
         aimAction?.action.Disable();
         basicAction?.action.Disable();
+        navigateAction?.action.Disable();
+        submitAction?.action.Disable();
+        cancelAction?.action.Disable();
     }
 
     public override void BindEvents()
     {
         DebugHelper.LogManager("InputManager.BindEvents()");
         if (actionsBound) return;
+        
         if (basicAction != null)
-        {
             basicAction.action.performed += OnBasic;
-            actionsBound = true;
-        }
+        if (submitAction != null)
+            submitAction.action.performed += OnSubmit;
+        if (cancelAction != null)
+            cancelAction.action.performed += OnCancel;
+            
+        actionsBound = true;
     }
 
     public override void StartRuntime()
@@ -58,6 +73,9 @@ public class InputManager : BaseManager
         moveAction?.action.Enable();
         aimAction?.action.Enable();
         basicAction?.action.Enable();
+        navigateAction?.action.Enable();
+        submitAction?.action.Enable();
+        cancelAction?.action.Enable();
         runtimeActive = true;
     }
 
@@ -71,26 +89,41 @@ public class InputManager : BaseManager
             moveAction?.action.Disable();
             aimAction?.action.Disable();
             basicAction?.action.Disable();
+            navigateAction?.action.Disable();
+            submitAction?.action.Disable();
+            cancelAction?.action.Disable();
         }
         else
         {
             moveAction?.action.Enable();
             aimAction?.action.Enable();
             basicAction?.action.Enable();
+            navigateAction?.action.Enable();
+            submitAction?.action.Enable();
+            cancelAction?.action.Enable();
         }
     }
 
     public override void Teardown()
     {
         DebugHelper.LogManager("InputManager.Teardown()");
-        if (actionsBound && basicAction != null)
+        if (actionsBound)
         {
-            basicAction.action.performed -= OnBasic;
+            if (basicAction != null)
+                basicAction.action.performed -= OnBasic;
+            if (submitAction != null)
+                submitAction.action.performed -= OnSubmit;
+            if (cancelAction != null)
+                cancelAction.action.performed -= OnCancel;
             actionsBound = false;
         }
+        
         moveAction?.action.Disable();
         aimAction?.action.Disable();
         basicAction?.action.Disable();
+        navigateAction?.action.Disable();
+        submitAction?.action.Disable();
+        cancelAction?.action.Disable();
         runtimeActive = false;
     }
     #endregion
@@ -100,13 +133,19 @@ public class InputManager : BaseManager
     {
         Move = moveAction != null ? moveAction.action.ReadValue<Vector2>() : Vector2.zero;
         Aim  = aimAction  != null ? aimAction.action.ReadValue<Vector2>()  : Vector2.zero;
+        Navigate = navigateAction != null ? navigateAction.action.ReadValue<Vector2>() : Vector2.zero;
     }
 
     private void OnDisable()
     {
-        if (actionsBound && basicAction != null)
+        if (actionsBound)
         {
-            basicAction.action.performed -= OnBasic;
+            if (basicAction != null)
+                basicAction.action.performed -= OnBasic;
+            if (submitAction != null)
+                submitAction.action.performed -= OnSubmit;
+            if (cancelAction != null)
+                cancelAction.action.performed -= OnCancel;
             actionsBound = false;
         }
     }
@@ -115,5 +154,11 @@ public class InputManager : BaseManager
     #region Handlers
     private void OnBasic(InputAction.CallbackContext ctx)
         => OnBasicPressedDSP?.Invoke(AudioSettings.dspTime);
+        
+    private void OnSubmit(InputAction.CallbackContext ctx)
+        => OnSubmitPressed?.Invoke();
+        
+    private void OnCancel(InputAction.CallbackContext ctx)
+        => OnCancelPressed?.Invoke();
     #endregion
 }

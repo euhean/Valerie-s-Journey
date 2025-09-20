@@ -74,19 +74,19 @@ public static class DebugHelper
 
     public static void LogCombat(Func<string> lazyMessage)
     {
-        if (enableCombatLogs && lazyMessage != null) Debug.Log("[COMBAT] " + lazyMessage());
+        if (enableCombatLogs && lazyMessage != null) Debug.Log($"[COMBAT] {lazyMessage()}");
     }
     public static void LogState(Func<string> lazyMessage)
     {
-        if (enableStateLogs && lazyMessage != null) Debug.Log("[STATE] " + lazyMessage());
+        if (enableStateLogs && lazyMessage != null) Debug.Log($"[STATE] {lazyMessage()}");
     }
     public static void LogManager(Func<string> lazyMessage)
     {
-        if (enableManagerLogs && lazyMessage != null) Debug.Log("[MANAGER] " + lazyMessage());
+        if (enableManagerLogs && lazyMessage != null) Debug.Log($"[MANAGER] {lazyMessage()}");
     }
     public static void LogInput(Func<string> lazyMessage)
     {
-        if (enableInputLogs && lazyMessage != null) Debug.Log("[INPUT] " + lazyMessage());
+        if (enableInputLogs && lazyMessage != null) Debug.Log($"[INPUT] {lazyMessage()}");
     }
 
     #endregion
