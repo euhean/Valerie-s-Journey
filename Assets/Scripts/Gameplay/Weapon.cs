@@ -14,6 +14,7 @@ public class Weapon : MonoBehaviour
     [Header("Weapon Settings")]
     public float basicDamage = GameConstants.BASIC_DAMAGE;
     public float strongDamage = GameConstants.STRONG_DAMAGE;
+    public float weaponDistance = 0.8f; // Distance from player center for precise area of effect
 
     [Header("Visual Settings")]
     public Color onDutyColor  = GameConstants.WEAPON_ON_DUTY_COLOR;
@@ -109,8 +110,14 @@ public class Weapon : MonoBehaviour
         float threshSq = GameConstants.WEAPON_AIM_THRESHOLD * GameConstants.WEAPON_AIM_THRESHOLD;
         if (aimDirection.sqrMagnitude > threshSq)
         {
+            // Rotate weapon to face aim direction
             float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
+            
+            // Position weapon at a fixed distance in the aim direction for precise area of effect
+            Vector2 normalizedDirection = aimDirection.normalized;
+            Vector3 weaponOffset = new Vector3(normalizedDirection.x, normalizedDirection.y, 0f) * weaponDistance;
+            transform.localPosition = weaponOffset;
         }
     }
 
