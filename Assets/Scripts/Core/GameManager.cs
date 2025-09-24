@@ -1,14 +1,16 @@
+using System;
+using System.Reflection;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Central orchestrator. Singleton that persists across scenes and
-/// wires manager lifecycles. Re-runs auto-configuration when new
-/// scenes are loaded so manager refs don't become stale.
-/// 
-/// Minimal changes only: factor lifecycle wiring into RunManagerLifecycle()
-/// and call it from both initial Start() and scene-loaded handler.
+/// wires manager lifecycles. This variant:
+/// - exposes global ScriptableObject configs (assign in inspector),
+/// - safely stops/unbinds managers before scene reconfigure,
+/// - wires configs into player components on RegisterPlayer,
+/// - and does tidy shutdown on OnDisable.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -26,32 +28,29 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region Inspector: Managers & Level
-    [Header("Managers")]
-    public InputManager inputManager;
-    public TimeManager timeManager;
+    [Header("Managers (assign in inspector if you want fixed refs)")]
+    [SerializeField] public InputManager inputManager;
+    [SerializeField] public TimeManager timeManager;
+    [SerializeField] public LevelManager levelManager;
+    #endregion
 
-    [Header("Level")]
-    [Tooltip("Assign LevelManager here (inspector)")]
-    public LevelManager levelManager;
+    #region Inspector: Global Configs (ScriptableObjects)
+    [Header("Global Config Assets (assign)")]
+    [SerializeField] public CombatConfig combatConfig;
+    [SerializeField] public BeatConfig beatConfig;
+    [SerializeField] public MovementConfig movementConfig;
     #endregion
 
     #region Runtime State
     [Header("Auto Assigned")]
     public Player MainPlayer { get; private set; }
-
     public GameState State { get; private set; } = GameState.Boot;
+    bool managersStarted = false;
     #endregion
 
-    #region Inspector: Auto-Configuration
-    [Header("Auto-Configuration")]
-    [Tooltip("If true, GameManager will automatically find managers and players in the scene")]
-    public bool autoConfigureScene = true;
-    #endregion
-
-    #region Unity Lifecycle
+    #region Unity lifecycle
     private void Awake()
     {
-        // singleton pattern
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -65,26 +64,22 @@ public class GameManager : MonoBehaviour
 
     private void OnEnable()
     {
-        // watch future scene loads so we can re-wire scene managers
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
     private void OnDisable()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
+        // Ensure managers stop when manager goes away (domain reload / playmode stop)
+        StopManagers();
     }
 
-    /// <summary>
-    /// First-time bootstrap runs as a coroutine to allow scene objects to initialize.
-    /// </summary>
     private IEnumerator Start()
     {
-        // wait a frame so scene-initialized objects have run their Awake/OnEnable
+        // allow scene Awake/OnEnable to run
         yield return null;
 
-        if (autoConfigureScene) AutoConfigureScene();
-
-        // Configure / Initialize / Bind managers (do not start runtime here)
+        AutoConfigureScene();
         RunManagerLifecycle();
 
         // enter gameplay state (this will start runtimes)
@@ -92,25 +87,21 @@ public class GameManager : MonoBehaviour
     }
     #endregion
 
-    #region Scene Handling & Lifecycle Wiring
-    /// <summary>
-    /// Clears cached scene-local refs and re-finds managers on scene load,
-    /// then runs the same lifecycle wiring as Start. If the game is already
-    /// in Gameplay state, it re-starts the managers' runtime.
-    /// </summary>
+    #region Scene handling & lifecycle wiring
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         DebugHelper.LogManager($"Scene loaded: {scene.name} — rewire managers");
 
-        // clear stale refs so AutoConfigureScene will find new ones
+        // stop and unbind old managers to avoid stale subscriptions/ghost calls
+        StopManagers();
+
+        // clear cached scene-local refs so AutoConfigureScene will find new ones
         inputManager = null;
-        timeManager  = null;
+        timeManager = null;
         levelManager = null;
-        MainPlayer   = null;
+        MainPlayer = null;
 
-        if (autoConfigureScene) AutoConfigureScene();
-
-        // Re-run configure/initialize/bind for new scene instances
+        AutoConfigureScene();
         RunManagerLifecycle();
 
         // If we are currently in Gameplay, restart manager runtime
@@ -122,29 +113,34 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Auto-locate managers and the main player if not already assigned.
-    /// Uses FindFirstObjectByType so it's safe in editor/runtime.
-    /// </summary>
     private void AutoConfigureScene()
     {
-        timeManager ??= FindFirstObjectByType<TimeManager>();
+        // Find managers in scene if not set in inspector
         inputManager ??= FindFirstObjectByType<InputManager>();
+        timeManager  ??= FindFirstObjectByType<TimeManager>();
         levelManager ??= FindFirstObjectByType<LevelManager>();
         MainPlayer   ??= FindFirstObjectByType<Player>();
 
-        if (MainPlayer != null)
-            DebugHelper.LogManager($"Auto-assigned MainPlayer: {MainPlayer.name}");
+        // Optionally push beatConfig into TimeManager if the field/property exists
+        if (timeManager != null && beatConfig != null)
+        {
+            var tmType = timeManager.GetType();
+            var field = tmType.GetField("beatConfig", BindingFlags.Public | BindingFlags.Instance);
+            if (field != null && field.FieldType == typeof(BeatConfig))
+                field.SetValue(timeManager, beatConfig);
+            else
+            {
+                var prop = tmType.GetProperty("BeatConfig", BindingFlags.Public | BindingFlags.Instance);
+                if (prop != null && prop.PropertyType == typeof(BeatConfig) && prop.CanWrite)
+                    prop.SetValue(timeManager, beatConfig);
+            }
+        }
 
         EnsureAudioListener();
     }
 
     /// <summary>
-    /// The common lifecycle steps used by Start() and OnSceneLoaded to avoid duplication:
-    /// - Configure(managers, level)
-    /// - Initialize()
-    /// - BindEvents()
-    /// Note: this method intentionally does NOT call StartRuntime() — state transitions control that.
+    /// Configure -> Initialize -> Bind (does NOT call StartRuntime).
     /// </summary>
     private void RunManagerLifecycle()
     {
@@ -158,23 +154,53 @@ public class GameManager : MonoBehaviour
         timeManager?.Initialize();
         levelManager?.Initialize();
 
-        // Bind events / subscriptions
+        // Bind events
         inputManager?.BindEvents();
         timeManager?.BindEvents();
         levelManager?.BindEvents();
 
         DebugHelper.LogManager("RunManagerLifecycle completed (Configure/Initialize/Bind).");
+        managersStarted = true;
     }
     #endregion
 
-    #region Utilities & State Transitions
+    #region Manager stop/unbind helpers
+    public void StopManagers()
+    {
+        if (!managersStarted) return;
+
+        try
+        {
+            // Stop runtime first (idempotent)
+            inputManager?.StopRuntime();
+            timeManager?.StopRuntime();
+            levelManager?.StopRuntime();
+
+            // Then unbind events
+            inputManager?.UnbindEvents();
+            timeManager?.UnbindEvents();
+            levelManager?.UnbindEvents();
+
+            // Safely unsubscribe from EventBus
+            EventBus.Instance.ClearAll();
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.LogWarning($"GameManager.StopManagers() encountered: {ex.Message}");
+        }
+
+        managersStarted = false;
+        DebugHelper.LogManager("GameManager: Managers stopped and unbound.");
+    }
+    #endregion
+
+    #region Utilities & state transitions
     private void EnsureAudioListener()
     {
         AudioListener existingListener = FindFirstObjectByType<AudioListener>();
         if (existingListener == null)
         {
-            Camera mainCamera = Camera.main;
-            mainCamera ??= FindFirstObjectByType<Camera>();
+            Camera mainCamera = Camera.main ?? FindFirstObjectByType<Camera>();
             if (mainCamera != null)
             {
                 mainCamera.gameObject.AddComponent<AudioListener>();
@@ -189,12 +215,57 @@ public class GameManager : MonoBehaviour
         else DebugHelper.LogManager($"AudioListener already exists on {existingListener.name}");
     }
 
+    /// <summary>
+    /// Register a spawned player and wire manager refs + config assets into its components.
+    /// </summary>
     public void RegisterPlayer(Player p)
     {
         if (p == null) return;
         MainPlayer = p;
         DebugHelper.LogManager(() => $"MainPlayer registered: {p.name}");
-        EventBus.Instance.Publish(new PlayerSpawnedEvent { player = p });
+
+        // wire managers
+        p.inputManager ??= inputManager;
+        p.timeManager  ??= timeManager;
+
+        // movement
+        var mover = p.GetComponent<PlayerMover2D>();
+        if (mover != null)
+        {
+            mover.inputManager ??= inputManager;
+            mover.movementConfig ??= movementConfig;
+        }
+
+        // attack controller
+        var pac = p.GetComponent<PlayerAttackController>();
+        if (pac != null)
+        {
+            pac.inputManager ??= inputManager;
+            pac.timeManager  ??= timeManager;
+            pac.combatConfig ??= combatConfig;
+            pac.beatConfig   ??= beatConfig;
+        }
+
+        // weapon
+        var weapon = p.GetComponentInChildren<Weapon>(true);
+        if (weapon != null)
+            weapon.combatConfig ??= combatConfig;
+
+        // Publish spawn event safely
+        try
+        {
+            EventBus.Instance?.Publish(new PlayerSpawnedEvent { player = p });
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.LogWarning($"GameManager.RegisterPlayer: EventBus publish failed: {ex.Message}");
+        }
+    }
+
+    public void UnregisterPlayer(Player p)
+    {
+        if (MainPlayer == p) MainPlayer = null;
+        DebugHelper.LogManager("GameManager: Player unregistered.");
     }
 
     public void ChangeState(GameState next)
@@ -207,6 +278,8 @@ public class GameManager : MonoBehaviour
             timeManager?.StartRuntime();
             levelManager?.StartRuntime();
         }
+        else
+            StopManagers();
     }
     #endregion
 }

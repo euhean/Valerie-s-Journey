@@ -1,9 +1,9 @@
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Spawns player/enemies at inspector-defined points; publishes spawn events.
+/// Delegates death-screen UI to ComponentHelper (uses CreateFullScreenCanvas / CreateFullScreenPanel / CreateText / CreateButton / SetupUINavigation).
 /// </summary>
 public class LevelManager : BaseManager
 {
@@ -34,6 +34,8 @@ public class LevelManager : BaseManager
         DebugHelper.LogManager("LevelManager.Initialize()");
         if (playerPrefab == null) DebugHelper.LogWarning("LevelManager: playerPrefab not assigned.");
         if (enemyPrefabs == null || enemyPrefabs.Length == 0) DebugHelper.LogWarning("LevelManager: no enemyPrefabs assigned.");
+        if (playerSpawnPoints == null || playerSpawnPoints.Length == 0) DebugHelper.LogWarning("LevelManager: no player spawn points assigned.");
+        if (enemySpawnPoints == null || enemySpawnPoints.Length == 0) DebugHelper.LogWarning("LevelManager: no enemy spawn points assigned.");
     }
 
     public override void BindEvents()
@@ -49,9 +51,13 @@ public class LevelManager : BaseManager
         if (isRunning) return;
         isRunning = true;
 
-        if (gameManager != null && gameManager.MainPlayer == null && playerPrefab != null && playerSpawnPoints != null && playerSpawnPoints.Length > 0)
+        // Spawn player if none exists
+        if (gameManager != null && gameManager.MainPlayer == null)
         {
-            SpawnPlayer(playerSpawnPoints[0].position);
+            var sp = FirstValid(playerSpawnPoints);
+            if (!playerPrefab) DebugHelper.LogError("LevelManager: Cannot spawn player (no prefab).");
+            else if (!sp) DebugHelper.LogError("LevelManager: Cannot spawn player (no valid spawn point).");
+            else SpawnPlayer(sp.position);
         }
     }
 
@@ -75,7 +81,7 @@ public class LevelManager : BaseManager
 
     private void OnPlayerDied(PlayerDiedEvent e)
     {
-        DebugHelper.LogManager($"Player {e.player.name} died - showing death screen");
+        DebugHelper.LogManager($"Player {e.player.name} died - showing death screen via ComponentHelper");
         ShowDeathScreen();
     }
     #endregion
@@ -83,59 +89,100 @@ public class LevelManager : BaseManager
     #region Spawning
     public Player SpawnPlayer(Vector3 worldPos)
     {
-        if (playerPrefab == null) { DebugHelper.LogWarning("LevelManager: playerPrefab not assigned."); return null; }
-        var go = Object.Instantiate(playerPrefab, worldPos, Quaternion.identity);
+        if (!playerPrefab)
+        {
+            DebugHelper.LogWarning("LevelManager: playerPrefab not assigned.");
+            return null;
+        }
+
+        var go = Instantiate(playerPrefab, worldPos, Quaternion.identity);
         var player = go.GetComponent<Player>();
-        if (player == null) { DebugHelper.LogWarning("Spawned player prefab does not contain Player component."); return null; }
+        if (!player)
+        {
+            DebugHelper.LogWarning("Spawned player prefab does not contain Player component.");
+            return null;
+        }
+
         GameManager.Instance?.RegisterPlayer(player);
+
+        // Publish your existing event type
+        EventBus.Instance?.Publish(new PlayerSpawnedEvent { player = player });
+
+        DebugHelper.LogManager("LevelManager: Player spawned and registered.");
         return player;
     }
 
     public Enemy SpawnEnemy(int prefabIndex, Vector3 worldPos)
     {
-        if (enemyPrefabs == null || prefabIndex < 0 || prefabIndex >= enemyPrefabs.Length)
-        { DebugHelper.LogWarning("LevelManager: invalid enemy prefab index."); return null; }
+        if (enemyPrefabs == null || enemyPrefabs.Length == 0)
+        {
+            DebugHelper.LogWarning("LevelManager: no enemyPrefabs assigned.");
+            return null;
+        }
 
-        var go = Object.Instantiate(enemyPrefabs[prefabIndex], worldPos, Quaternion.identity);
+        if (prefabIndex < 0 || prefabIndex >= enemyPrefabs.Length)
+        {
+            DebugHelper.LogWarning($"LevelManager: invalid enemy prefab index {prefabIndex}.");
+            return null;
+        }
+
+        var prefab = enemyPrefabs[prefabIndex];
+        if (!prefab)
+        {
+            DebugHelper.LogWarning($"LevelManager: enemy prefab at index {prefabIndex} is null.");
+            return null;
+        }
+
+        var go = Instantiate(prefab, worldPos, Quaternion.identity);
         var enemy = go.GetComponent<Enemy>();
-        if (enemy == null) { DebugHelper.LogWarning("Spawned enemy prefab missing Enemy component."); return null; }
+        if (!enemy)
+        {
+            DebugHelper.LogWarning("Spawned enemy prefab missing Enemy component.");
+            Destroy(go);
+            return null;
+        }
+
         EventBus.Instance?.Publish(new EnemySpawnedEvent { enemy = enemy });
+        DebugHelper.LogManager("LevelManager: Enemy spawned.");
         return enemy;
     }
 
     public void SpawnEnemyAtIndexToFirstPoint(int prefabIndex)
     {
-        if (enemySpawnPoints == null || enemySpawnPoints.Length == 0) return;
-        SpawnEnemy(prefabIndex, enemySpawnPoints[0].position);
+        var sp = FirstValid(enemySpawnPoints);
+        if (!sp) return;
+        SpawnEnemy(prefabIndex, sp.position);
+    }
+
+    private Transform FirstValid(Transform[] points)
+    {
+        if (points == null) return null;
+        foreach (var t in points) if (t) return t;
+        return null;
     }
     #endregion
 
-    #region Death Screen UI
+    #region Death Screen (delegates to ComponentHelper)
     private void ShowDeathScreen()
     {
         if (deathScreenCanvas != null) return; // Already showing
 
-        // Create Canvas using ComponentHelper
+        // Use ComponentHelper to create the UI (your helper defines these exact APIs)
         GameObject canvasGO = ComponentHelper.CreateFullScreenCanvas("DeathScreenCanvas");
 
-        // Create background panel
         Color backgroundColor = new Color(0, 0, 0, 0.8f); // Semi-transparent black
         GameObject panelGO = ComponentHelper.CreateFullScreenPanel(canvasGO, "DeathPanel", backgroundColor);
 
-        // Create title text
-        ComponentHelper.CreateText(panelGO, "DeathTitle", "GAME OVER", 48, Color.red, 
+        ComponentHelper.CreateText(panelGO, "DeathTitle", "GAME OVER", 48, Color.red,
             TextAnchor.MiddleCenter, new Vector2(0, 0.6f), new Vector2(1, 0.8f));
 
-        // Create Restart button
         Color buttonColor = new Color(0.3f, 0.3f, 0.3f, 0.9f);
         ComponentHelper.CreateButton(panelGO, "RestartButton", "RESTART", buttonColor,
             new Vector2(0.2f, 0.3f), new Vector2(0.4f, 0.4f), RestartGame);
 
-        // Create Exit button
         ComponentHelper.CreateButton(panelGO, "ExitButton", "EXIT", buttonColor,
             new Vector2(0.6f, 0.3f), new Vector2(0.8f, 0.4f), ExitGame);
 
-        // Set up gamepad navigation using Unity's built-in system
         ComponentHelper.SetupUINavigation(panelGO);
 
         deathScreenCanvas = canvasGO;
@@ -150,11 +197,11 @@ public class LevelManager : BaseManager
     private void ExitGame()
     {
         DebugHelper.LogManager("Exiting game...");
-        #if UNITY_EDITOR
+    #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
-        #else
+    #else
         Application.Quit();
-        #endif
+    #endif
     }
     #endregion
 }

@@ -1,151 +1,173 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Central rhythm/conductor. Emits beat events based on BPM and
-/// provides on-beat/off-beat checks for timing user inputs.
-/// Lifecycle-aware.
+/// TimeManager / metronome: emits OnBeat events using DSP timing and consults BeatConfig.
+/// Designed to be lifecycle-managed by GameManager (Configure/Initialize/BindEvents/StartRuntime/StopRuntime).
 /// </summary>
 public class TimeManager : BaseManager
 {
-    #region Inspector
-    [Range(40f, 220f)]
+    [Header("Tempo")]
+    [Tooltip("Beats Per Minute. Can be tuned in editor for testing.")]
     public float bpm = 120f;
 
-    [Tooltip("Half-window in seconds considered 'on beat'")]
-    public float onBeatWindowSec = 0.07f;
+    [Header("Beat Config (assigned by GameManager or in Inspector)")]
+    public BeatConfig beatConfig; // assigned by GameManager.AutoConfigureScene when available
 
-    [Tooltip("Seconds of lead-in before beats start (for a metronome or loading delay)")]
-    public float startDelaySec = 0.4f;
-
-    [Header("Metronome Settings")]
-    public bool enableMetronome = true;
-    public AudioClip metronomeClip;
-    [Range(0f, 1f)] public float metronomeVolume = 0.5f;
-    #endregion
-
-    #region Events
-    /// <summary>beat index: 0..3 for 4/4</summary>
+    /// <summary>Raised on each beat; payload = beat index (starting at 0).</summary>
     public event Action<int> OnBeat;
-    #endregion
 
-    #region Internal State
-    private double nextBeatDSP;
-    private int beatIndex;
-    private AudioSource metronomeAudioSource;
+    // Internal timing state
     private bool running = false;
-    private double beatDuration => 60.0 / Math.Max(0.0001, bpm);
-    #endregion
+    private Coroutine metronomeCoroutine;
+    private double nextBeatDSP = 0.0;
+    private int beatIndex = 0;
+    private double lastBeatDSP = -9999.0;
 
-    #region BaseManager Overrides
+    // Small guard to prevent spamming StartRuntime
+    private bool runtimeStarted = false;
+
+    #region BaseManager surface (minimal)
     public override void Configure(GameManager gm)
     {
         base.Configure(gm);
-        DebugHelper.LogManager("TimeManager.Configure()");
-        // Prepare audio source (idempotent)
-        if (metronomeAudioSource == null)
+        // BeatConfig might already be assigned by GameManager.AutoConfigureScene
+        if (beatConfig == null)
         {
-            metronomeAudioSource = gameObject.GetComponent<AudioSource>();
-            if (metronomeAudioSource == null)
-            {
-                metronomeAudioSource = gameObject.AddComponent<AudioSource>();
-            }
-            
-            if (metronomeAudioSource != null)
-            {
-                metronomeAudioSource.playOnAwake = false;
-                metronomeAudioSource.clip = metronomeClip;
-                metronomeAudioSource.volume = metronomeVolume;
-            }
+            DebugHelper.LogManager("[TimeManager] No BeatConfig assigned (using defaults).");
         }
     }
 
     public override void Initialize()
     {
-        DebugHelper.LogManager("TimeManager.Initialize()");
-        beatIndex = -1;
-        running = false;
+        base.Initialize();
+        // nothing special for now
     }
 
     public override void BindEvents()
     {
-        DebugHelper.LogManager("TimeManager.BindEvents()");
-        // Nothing to subscribe to at the moment; other systems will subscribe to us
+        base.BindEvents();
+        // no external subscriptions required here
     }
 
     public override void StartRuntime()
     {
-        DebugHelper.LogManager("TimeManager.StartRuntime()");
-        double dsp = AudioSettings.dspTime;
-        nextBeatDSP = dsp + startDelaySec;
-        beatIndex = -1;
-        running = true;
+        if (runtimeStarted) return;
+        runtimeStarted = true;
+        // Start the metronome loop
+        metronomeCoroutine = CoroutineRunner.Instance.StartCoroutine(MetronomeLoop());
+        DebugHelper.LogManager("[TimeManager] Runtime started.");
     }
 
-    public override void Pause(bool isPaused)
+    public override void StopRuntime()
     {
-        DebugHelper.LogManager($"TimeManager.Pause({isPaused})");
-        running = !isPaused;
-        if (isPaused) metronomeAudioSource?.Pause();
-        else metronomeAudioSource?.UnPause();
-    }
-
-    public override void Teardown()
-    {
-        DebugHelper.LogManager("TimeManager.Teardown()");
+        if (!runtimeStarted) return;
+        runtimeStarted = false;
+        if (metronomeCoroutine != null)
+        {
+            CoroutineRunner.Instance.StopCoroutine(metronomeCoroutine);
+            metronomeCoroutine = null;
+        }
         running = false;
-        metronomeAudioSource?.Stop();
+        DebugHelper.LogManager("[TimeManager] Runtime stopped.");
+    }
+
+    public override void UnbindEvents()
+    {
+        base.UnbindEvents();
+        // nothing to unbind
     }
     #endregion
 
-    #region Unity Loop
-    private void Update()
+    #region Metronome loop
+    private IEnumerator MetronomeLoop()
     {
-        if (!running) return;
+        running = true;
+        beatIndex = 0;
+        lastBeatDSP = AudioSettings.dspTime;
+        double dspNow = AudioSettings.dspTime;
+        double secondsPerBeat = 60.0 / Math.Max(1f, bpm);
+        nextBeatDSP = dspNow + secondsPerBeat * 0.1; // small offset to avoid immediately firing
 
-        double dsp = AudioSettings.dspTime;
-        double dur = beatDuration;
-
-        while (dsp >= nextBeatDSP)
+        while (running)
         {
-            beatIndex = (beatIndex + 1) % 4;
-            PlayMetronomeClick();
-            OnBeat?.Invoke(beatIndex);
-            nextBeatDSP += dur;
+            dspNow = AudioSettings.dspTime;
+
+            // Catch-up loop (in case of hiccups)
+            while (dspNow + 0.0001 >= nextBeatDSP)
+            {
+                // Fire beat
+                lastBeatDSP = nextBeatDSP;
+                try
+                {
+                    OnBeat?.Invoke(beatIndex);
+                }
+                catch (Exception ex)
+                {
+                    DebugHelper.LogWarning($"[TimeManager] OnBeat handler threw: {ex.Message}");
+                }
+
+                beatIndex++;
+                // schedule next
+                secondsPerBeat = 60.0 / Math.Max(1f, bpm);
+                nextBeatDSP += secondsPerBeat;
+                dspNow = AudioSettings.dspTime;
+            }
+
+            yield return null;
         }
     }
     #endregion
 
-    #region Beat Helpers
-    private void PlayMetronomeClick()
-    {
-        if (enableMetronome && metronomeAudioSource != null && metronomeClip != null)
-        {
-            metronomeAudioSource.volume = metronomeVolume;
-            metronomeAudioSource.PlayOneShot(metronomeClip);
-        }
-    }
-    #endregion
-
-    #region Queries
+    #region Query helpers (for gameplay)
+    /// <summary>
+    /// Returns true if the supplied DSP timestamp is within the configured on-beat window.
+    /// beatConfig.onBeatWindowSec represents the half-window (±).
+    /// </summary>
     public bool IsOnBeat(double dspTime)
     {
-        double dur = beatDuration;
-        double lastBeatTime = nextBeatDSP - dur;
-        double dist = Math.Abs((dspTime - lastBeatTime) % dur);
-        dist = Math.Min(dist, dur - dist);
-        return dist <= onBeatWindowSec;
+        if (lastBeatDSP < 0) return false;
+        float tol = beatConfig != null ? Mathf.Abs(beatConfig.onBeatWindowSec) : 0.07f;
+        return Math.Abs(dspTime - lastBeatDSP) <= tol;
     }
 
+    /// <summary>
+    /// Returns true if the timestamp is clearly off-beat but within a larger contra window.
+    /// This is useful for contratempo checks (optional).
+    /// </summary>
     public bool IsOffBeatContratempo(double dspTime)
     {
-        double dur = beatDuration;
-        double halfBeat = dur * 0.5;
-        double lastBeatTime = nextBeatDSP - dur;
-        double tFromLastBeat = dspTime - lastBeatTime;
-        double dist = Math.Abs((tFromLastBeat % dur) - halfBeat);
-        dist = Math.Min(dist, dur - dist);
-        return dist <= onBeatWindowSec;
+        if (lastBeatDSP < 0) return false;
+        float onBeatTol = beatConfig != null ? Mathf.Abs(beatConfig.onBeatWindowSec) : 0.07f;
+        float contraTol = onBeatTol * 2.0f; // example: twice the on-beat window
+        double diff = Math.Abs(dspTime - lastBeatDSP);
+        return diff > onBeatTol && diff <= contraTol;
     }
+
+    /// <summary>
+    /// Exposes the last beat's DSP timestamp for debugging or alignment.
+    /// </summary>
+    public double LastBeatDSP => lastBeatDSP;
     #endregion
+}
+
+/// <summary>
+/// Utility singleton runner for coroutines inside non-Mono classes or to provide a centralized runner.
+/// If you already have a coroutine runner in your project, remove this and use that instead.
+/// </summary>
+public class CoroutineRunner : MonoBehaviour
+{
+    private static CoroutineRunner _instance;
+    public static CoroutineRunner Instance
+    {
+        get
+        {
+            if (_instance != null) return _instance;
+            var go = new GameObject("__CoroutineRunner");
+            DontDestroyOnLoad(go);
+            _instance = go.AddComponent<CoroutineRunner>();
+            return _instance;
+        }
+    }
 }

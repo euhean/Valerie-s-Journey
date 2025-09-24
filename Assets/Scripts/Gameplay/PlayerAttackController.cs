@@ -1,249 +1,178 @@
-using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Handles attack timing and combo logic. Subscribes to the basic-attack input
-/// and uses TimeManager for on-beat checks. Works with Weapon to deal damage.
+/// Handles attack timing, combo rules, aim lock during strong, and emits AttackResolved.
+/// Minimal event pipeline: Weapon will emit DamageApplied per hit in the next step.
 /// </summary>
+[RequireComponent(typeof(Weapon))]
 public class PlayerAttackController : MonoBehaviour
 {
-    #region Cached WaitForSeconds
-    private static WaitForSeconds _strongLockWait025 = new WaitForSeconds(0.25f);
-    private static WaitForSeconds _strongLockWait05 = new WaitForSeconds(0.5f);
-    #endregion
-
     #region Inspector
+    [Header("Manager Refs (assign or left to be fetched from GameManager)")]
+    public InputManager inputManager;
+    public TimeManager timeManager;
 
-    [Header("Attack Timing")]
-    public float attackCooldown = GameConstants.ATTACK_COOLDOWN; // min time between presses
+    [Header("Configs (ScriptableObjects)")]
+    public CombatConfig combatConfig; // basicDamage, strongDamage, comboStreak, attackWindow
+    public BeatConfig beatConfig;     // onBeat window, reset policies
 
-    [Header("Strong Attack Options")]
-    [Tooltip("If true, aiming will be locked for 'strongLockDuration' seconds when a strong attack triggers.")]
-    public bool strongLocksAiming = false;
-
-    [Tooltip("Seconds to lock aiming when a strong attack occurs (only if strongLocksAiming==true).")]
-    public float strongLockDuration = 0.25f;
-
-    [Header("Combo Decay (optional)")]
-    [Tooltip("If > 0, the combo will auto-reset after this many beats without on-beat presses.")]
-    public int comboDecayBeats = 0;
-
+    [Header("Cooldowns")]
+    [Tooltip("Seconds between button presses being accepted (prevents button mashing spam)")]
+    public float attackCooldown = 0.15f;
     #endregion
 
     #region Private State
+    private Weapon weapon;
+    private bool isAimLocked = false;
+    private bool attackInProgress = false;
 
-    private double lastAttackDSP = -9999.0;
+    private double lastPressDSP = -9999.0;
     private int onBeatStreak = 0;
-    private int beatsSinceLastPress = 0;
-
-    private InputManager registeredInput;
-    private TimeManager registeredTime;
-    private Weapon playerWeapon;
-    private Entity ownerEntity;
-
-    private bool isRegistered = false;
-    private bool isStrongActive = false;
-
-    #endregion
-
-    #region Events
-
-    public event Action<int> OnComboProgress; // current streak (0..N)
-    public event Action OnStrongAttackTriggered;
-
+    private int beatsSinceLastOnBeatPress = 0;
+    private Coroutine strongAimLockCoro;
     #endregion
 
     #region Unity Lifecycle
-
     private void Awake()
     {
-        playerWeapon = GetComponentInChildren<Weapon>(true);
-        if (playerWeapon == null)
-            DebugHelper.LogWarning("PlayerAttackController: No Weapon component found in children!");
-        
-        ownerEntity = GetComponent<Entity>();
-        if (ownerEntity == null)
-            DebugHelper.LogWarning("PlayerAttackController: No Entity component found!");
+        weapon = GetComponent<Weapon>();
+        if (combatConfig == null) DebugHelper.LogWarning("[PAC] CombatConfig not assigned.");
+        if (beatConfig == null) DebugHelper.LogWarning("[PAC] BeatConfig not assigned.");
     }
 
+    private void Start()
+    {
+        // Acquire managers from GameManager if not set in inspector
+        inputManager ??= GameManager.Instance?.inputManager;
+        timeManager  ??= GameManager.Instance?.timeManager;
+        if (inputManager == null) DebugHelper.LogError("[PAC] InputManager not found.");
+        if (timeManager == null)  DebugHelper.LogError("[PAC] TimeManager not found.");
+    }
+
+    private void OnEnable()
+    {
+        if (inputManager != null) inputManager.OnBasicPressedDSP += HandleBasicPressedDSP;
+        if (timeManager  != null) timeManager.OnBeat += HandleBeat;
+    }
+
+    private void OnDisable()
+    {
+        if (inputManager != null) inputManager.OnBasicPressedDSP -= HandleBasicPressedDSP;
+        if (timeManager  != null) timeManager.OnBeat -= HandleBeat;
+    }
     #endregion
 
-    #region Registration
-
-    /// <summary>
-    /// Safe, idempotent registration. If input/time are null it defers subscription until provided.
-    /// </summary>
-    public void Register(InputManager input, TimeManager time)
+    #region Input & Combo
+    private void HandleBeat(int _)
     {
-        // if already registered to same pair -> noop
-        if (isRegistered && registeredInput == input && registeredTime == time) return;
-
-        // unsubscribe previous if any
-        if (isRegistered && registeredInput != null)
+        // Beat-based combo inactivity
+        if (beatConfig != null && beatConfig.resetOnInactivityBeats > 0)
         {
-            try { registeredInput.OnBasicPressedDSP -= HandleAttackInput; } catch { }
-            if (registeredTime != null) registeredTime.OnBeat -= HandleBeat;
-            isRegistered = false;
-        }
-
-        registeredInput = input;
-        registeredTime  = time;
-
-        if (registeredInput != null && registeredTime != null)
-        {
-            registeredInput.OnBasicPressedDSP += HandleAttackInput;
-            registeredTime.OnBeat += HandleBeat;
-            isRegistered = true;
-            DebugHelper.LogManager("PlayerAttackController: Registered to input/time.");
-        }
-        else
-        {
-            DebugHelper.LogManager("PlayerAttackController: Deferred registration (missing input/time).");
+            beatsSinceLastOnBeatPress++;
+            if (beatsSinceLastOnBeatPress >= beatConfig.resetOnInactivityBeats)
+            {
+                ResetCombo("inactivity");
+            }
         }
     }
 
-    /// <summary>
-    /// Unregisters if the passed input matches what we subscribed to. Safe to call multiple times.
-    /// </summary>
-    public void Unregister(InputManager input)
+    private void HandleBasicPressedDSP(double pressDSP)
     {
-        if (!isRegistered || registeredInput == null) return;
-        if (registeredInput != input) return;
+        if (attackInProgress) return; // respect the current attack window
+        if (pressDSP - lastPressDSP < attackCooldown) return; // basic anti-spam
+        lastPressDSP = pressDSP;
 
-        try { registeredInput.OnBasicPressedDSP -= HandleAttackInput; } catch { }
-        if (registeredTime != null) registeredTime.OnBeat -= HandleBeat;
+        bool onBeat = timeManager != null && timeManager.IsOnBeat(pressDSP);
 
-        registeredInput = null;
-        registeredTime  = null;
-        isRegistered    = false;
+        // Combo rules:
+        // - Off-beat press: allowed, but resets streak immediately (never contributes to strong)
+        // - On-beat press: increments streak; if reaches comboStreak -> strong attack and reset afterwards
+        bool isStrong = false;
 
-        DebugHelper.LogManager("PlayerAttackController: Unregistered.");
-    }
-
-    #endregion
-
-    #region Beat Handling
-
-    private void HandleBeat(int beatIndex)
-    {
-        if (comboDecayBeats <= 0) return;
-        beatsSinceLastPress++;
-        if (beatsSinceLastPress >= comboDecayBeats)
-        {
-            ResetCombo();
-            beatsSinceLastPress = 0;
-        }
-    }
-
-    #endregion
-
-    #region Input Handling
-
-    private void HandleAttackInput(double dspTime)
-    {
-        if (registeredTime == null) return;
-
-        // Don't attack if player is dead or off duty
-        if (ownerEntity != null && (ownerEntity.currentState != Entity.EntityState.ALIVE || !ownerEntity.onDuty))
-        {
-            return;
-        }
-
-        // cooldown
-        if (dspTime - lastAttackDSP < attackCooldown) return;
-        lastAttackDSP = dspTime;
-
-        // ignore while strong lock active
-        if (isStrongActive) return;
-
-        beatsSinceLastPress = 0;
-
-        bool onBeat = registeredTime.IsOnBeat(dspTime);
         if (!onBeat)
         {
-            onBeatStreak = 0;
-            OnComboProgress?.Invoke(onBeatStreak);
-            DebugHelper.LogCombat("Off-beat attack - combo reset to 0");
-            BasicAttack(false);
-            return;
+            if (beatConfig == null || beatConfig.resetOnOffBeat) ResetCombo("off-beat");
         }
-
-        // on-beat
-        onBeatStreak++;
-        OnComboProgress?.Invoke(Mathf.Min(onBeatStreak, GameConstants.COMBO_STREAK_FOR_STRONG));
-
-        if (onBeatStreak >= GameConstants.COMBO_STREAK_FOR_STRONG)
-        {
-            onBeatStreak = 0;
-            OnComboProgress?.Invoke(onBeatStreak);
-            DebugHelper.LogCombat(() => $"STRONG ATTACK triggered after {GameConstants.COMBO_STREAK_FOR_STRONG}-hit combo!");
-            StrongAttack();
-            OnStrongAttackTriggered?.Invoke();
-            return;
-        }
-
-        BasicAttack(true);
-    }
-
-    #endregion
-
-    #region Attacks
-
-    private void BasicAttack(bool onBeat)
-    {
-        if (playerWeapon == null) return;
-        playerWeapon.PerformAttack(false);
-        AnimationHelper.ShowAttack(playerWeapon.transform.position);
-        if (!onBeat) DebugHelper.LogCombat("Off-beat basic attack - no combo progression");
-    }
-
-    private void StrongAttack()
-    {
-        if (playerWeapon == null) return;
-
-        if (strongLocksAiming && !isStrongActive)
-        {
-            isStrongActive = true;
-            StartCoroutine(StrongLockCoroutine(strongLockDuration));
-        }
-
-        playerWeapon.PerformAttack(true);
-        AnimationHelper.ShowStrongAttack(playerWeapon.transform.position);
-    }
-
-    private IEnumerator StrongLockCoroutine(float duration)
-    {
-        // Use cached WaitForSeconds for common durations
-        if (duration == 0.25f)
-            yield return _strongLockWait025;
-        else if (duration == 0.5f)
-            yield return _strongLockWait05;
         else
-            yield return new WaitForSeconds(duration);
-        
-        isStrongActive = false;
-    }
+        {
+            beatsSinceLastOnBeatPress = 0;
+            onBeatStreak++;
+            if (combatConfig != null && onBeatStreak >= combatConfig.comboStreak)
+            {
+                isStrong = true;
+                // Reset streak after strong resolves (done at the end of the window)
+            }
+        }
 
+        // Run the attack window
+        StartCoroutine(DoAttackWindow(onBeat, isStrong));
+    }
     #endregion
 
-    #region Public Controls
-
-    public void ResetCombo()
+    #region Attack Window Coroutine
+    private IEnumerator DoAttackWindow(bool onBeat, bool isStrong)
     {
+        attackInProgress = true;
+
+        float windowSec = combatConfig != null ? combatConfig.attackWindow : 0.20f;
+
+        // Lock aim for strong only during the window
+        if (isStrong)
+        {
+            isAimLocked = true;
+            if (strongAimLockCoro != null) StopCoroutine(strongAimLockCoro);
+            strongAimLockCoro = StartCoroutine(UnlockAimAfter(windowSec));
+        }
+
+        // Tell weapon to open its active window; it will collect hits.
+        // NOTE: Weapon will be replaced next to provide StartAttackWindow + ConsumeHitTargets.
+        weapon.StartAttackWindow(isStrong, windowSec);
+
+        // Wait for the window to finish
+        yield return new WaitForSeconds(windowSec);
+
+        // Consume hit targets from the weapon for this window
+        IReadOnlyList<Entity> hits = weapon.ConsumeHitTargets();
+
+        bool success = hits != null && hits.Count > 0;
+
+        // Emit AttackResolved (DamageApplied will be emitted per-hit by Weapon during the window)
+        var evt = new AttackResolved(
+            attacker: GetComponent<Entity>(),
+            success: success,
+            isStrong: isStrong,
+            onBeat: onBeat,
+            hitTargets: hits ?? (IReadOnlyList<Entity>)new List<Entity>(0),
+            dspTime: AudioSettings.dspTime
+        );
+        EventBus.Instance.Publish(evt);
+
+        // Reset strong combo after a strong attack fires
+        if (isStrong) onBeatStreak = 0;
+
+        attackInProgress = false;
+    }
+
+    private IEnumerator UnlockAimAfter(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        isAimLocked = false;
+    }
+    #endregion
+
+    #region Public API (for movement/aim systems)
+    /// <summary>Call from your aiming code to know if aim updates should be ignored.</summary>
+    public bool IsAimLocked() => isAimLocked;
+    #endregion
+
+    #region Helpers
+    private void ResetCombo(string reason)
+    {
+        if (onBeatStreak != 0) DebugHelper.LogCombat($"[PAC] Combo reset ({reason}).");
         onBeatStreak = 0;
-        beatsSinceLastPress = 0;
-        OnComboProgress?.Invoke(onBeatStreak);
+        beatsSinceLastOnBeatPress = 0;
     }
-
-    public void AbortAttack()
-    {
-        isStrongActive = false;
-        StopAllCoroutines();
-    }
-
-    public void CancelCurrentAttack() => AbortAttack();
-    public int CurrentComboStreak => onBeatStreak;
-
     #endregion
 }
