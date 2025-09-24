@@ -2,8 +2,9 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Generic weapon class that handles collision detection, visual representation,
-/// and damage dealing. Attach to a child GameObject of the player.
+/// Generic weapon: timed attack window, overlap-based hits, damage application,
+/// and per-hit DamageApplied events. Works with PlayerAttackController which
+/// opens the window and later consumes the hit list.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(BoxCollider2D), typeof(SpriteRenderer))]
@@ -11,34 +12,38 @@ public class Weapon : MonoBehaviour
 {
     #region Inspector
 
-    [Header("Weapon Settings")]
-    public float basicDamage = GameConstants.BASIC_DAMAGE;
+    [Header("Optional Config (overrides GameConstants damages if set)")]
+    public CombatConfig combatConfig;
+
+    [Header("Weapon Settings (fallback if no CombatConfig)")]
+    public float basicDamage  = GameConstants.BASIC_DAMAGE;
     public float strongDamage = GameConstants.STRONG_DAMAGE;
-    public float weaponDistance = 0.8f; // Distance from player center for precise area of effect
 
-    [Header("Visual Settings")]
-    public Color onDutyColor  = GameConstants.WEAPON_ON_DUTY_COLOR;
-    public Color offDutyColor = GameConstants.WEAPON_OFF_DUTY_COLOR;
-    public Color attackColor  = GameConstants.WEAPON_ATTACK_COLOR;
+    [Header("Visuals")]
+    public Color onDutyColor   = GameConstants.WEAPON_ON_DUTY_COLOR;
+    public Color offDutyColor  = GameConstants.WEAPON_OFF_DUTY_COLOR;
+    public Color attackColor   = GameConstants.WEAPON_ATTACK_COLOR;
+    [Tooltip("Local offset distance of the blade from player center when aiming.")]
+    public float weaponDistance = 0.6f;
 
-    [Header("Components")]
-    [SerializeField] private BoxCollider2D  weaponCollider;
+    [Header("References (auto-filled)")]
+    [SerializeField] private BoxCollider2D weaponCollider;
     [SerializeField] private SpriteRenderer weaponRenderer;
+    private Entity ownerEntity;
 
     #endregion
 
-    #region Private State
+    #region Runtime State
 
-    private Entity ownerEntity;
+    // Current window state
     private bool isAttacking = false;
     private bool currentAttackIsStrong = false;
 
-    // prevent multi-hit per swing
-    private readonly HashSet<Entity> hitEntitiesThisAttack = new HashSet<Entity>();
+    // Per-window hit tracking
+    private readonly HashSet<Entity> hitSet = new HashSet<Entity>();
+    private readonly List<Entity> hitList = new List<Entity>();
 
     #endregion
-
-    #region Editor Wiring
 
 #if UNITY_EDITOR
     private void OnValidate()
@@ -48,8 +53,6 @@ public class Weapon : MonoBehaviour
         if (weaponCollider)   weaponCollider.isTrigger = true;
     }
 #endif
-
-    #endregion
 
     #region Unity Lifecycle
 
@@ -62,7 +65,7 @@ public class Weapon : MonoBehaviour
         Debug.Assert(weaponCollider && weaponRenderer, "Weapon requires BoxCollider2D + SpriteRenderer.");
         weaponCollider.isTrigger = true;
 
-        // auto-size collider to sprite on boot
+        // Auto-size collider to sprite on boot
         if (weaponRenderer.sprite != null)
             ComponentHelper.AutoConfigureColliderToSprite(weaponRenderer, weaponCollider);
 
@@ -73,33 +76,54 @@ public class Weapon : MonoBehaviour
 
     #endregion
 
-    #region Public API
+    #region Public API (called by PlayerAttackController)
 
-    public void SetOwnerDutyState(bool isOnDuty)
-    {
-        SetVisualState(isOnDuty);
-        if (weaponCollider) weaponCollider.enabled = isOnDuty;
-    }
-
-    public void PerformAttack(bool isStrongAttack)
+    /// <summary>
+    /// Opens a timed attack window. During the window, overlapping entities are damaged once.
+    /// </summary>
+    public void StartAttackWindow(bool isStrongAttack, float windowSeconds)
     {
         if (ownerEntity == null ||
             ownerEntity.currentState != Entity.EntityState.ALIVE ||
             !ownerEntity.onDuty)
             return;
 
+        // Begin window
         isAttacking = true;
         currentAttackIsStrong = isStrongAttack;
-        hitEntitiesThisAttack.Clear();
+        hitSet.Clear();
+        hitList.Clear();
 
-        // quick flash on weapon
-        Color effectColor = isStrongAttack ? GameConstants.ORANGE_COLOR : attackColor;
-        AnimationHelper.ShowHitFlash(weaponRenderer, effectColor, GameConstants.ATTACK_VISUAL_DURATION);
+        // Visual flash to indicate attack
+        var effectColor = isStrongAttack ? GameConstants.ORANGE_COLOR : attackColor;
+        AnimationHelper.ShowHitFlash(weaponRenderer, effectColor, windowSeconds);
 
-        // close the attack window shortly after
-        Invoke(nameof(ResetAttackState), GameConstants.ATTACK_VISUAL_DURATION);
+        // Weapon should be visible & colliding while on duty
+        SetVisualState(true);
+        if (weaponCollider) weaponCollider.enabled = true;
+
+        // Close window after duration
+        CancelInvoke(nameof(ResetAttackState));
+        Invoke(nameof(ResetAttackState), windowSeconds);
     }
 
+    /// <summary>
+    /// Returns the list of entities hit during the last window and clears the internal list.
+    /// Safe to call after the window completes.
+    /// </summary>
+    public IReadOnlyList<Entity> ConsumeHitTargets()
+    {
+        // Return a copy and clear internal list to avoid accidental reuse
+        var copy = new List<Entity>(hitList);
+        hitList.Clear();
+        hitSet.Clear();
+        return copy;
+    }
+
+    /// <summary>
+    /// Aiming helper. Rotate and offset the weapon along aim direction.
+    /// Call from movement/aim system when not aim-locked.
+    /// </summary>
     public void UpdateAiming(Vector2 aimDirection)
     {
         if (ownerEntity == null ||
@@ -113,12 +137,21 @@ public class Weapon : MonoBehaviour
             // Rotate weapon to face aim direction
             float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
-            
-            // Position weapon at a fixed distance in the aim direction for precise area of effect
-            Vector2 normalizedDirection = aimDirection.normalized;
-            Vector3 weaponOffset = new Vector3(normalizedDirection.x, normalizedDirection.y, 0f) * weaponDistance;
-            transform.localPosition = weaponOffset;
+
+            // Position weapon at a fixed distance in the aim direction
+            Vector2 normalized = aimDirection.normalized;
+            Vector3 offset = new Vector3(normalized.x, normalized.y, 0f) * weaponDistance;
+            transform.localPosition = offset;
         }
+    }
+
+    /// <summary>
+    /// Called by Player/Entity when their duty state changes (show/hide the weapon).
+    /// </summary>
+    public void SetOwnerDutyState(bool isOnDuty)
+    {
+        SetVisualState(isOnDuty);
+        if (weaponCollider) weaponCollider.enabled = isOnDuty;
     }
 
     #endregion
@@ -130,14 +163,33 @@ public class Weapon : MonoBehaviour
         if (!isAttacking) return;
         if (!other.CompareTag("Enemy")) return;
         if (!other.TryGetComponent<Entity>(out var targetEntity)) return;
-        if (hitEntitiesThisAttack.Contains(targetEntity)) return;
+        if (hitSet.Contains(targetEntity)) return;
 
-        float damage = currentAttackIsStrong ? strongDamage : basicDamage;
-        string attackType = currentAttackIsStrong ? "STRONG" : "basic";
-        DebugHelper.LogCombat(() => $"Weapon hit {targetEntity.name} with {attackType} attack ({damage} damage)");
+        // Determine damage
+        float dmg = currentAttackIsStrong
+            ? (combatConfig != null ? combatConfig.strongDamage : strongDamage)
+            : (combatConfig != null ? combatConfig.basicDamage  : basicDamage);
 
-        targetEntity.TakeDamage(damage);
-        hitEntitiesThisAttack.Add(targetEntity);
+        // Apply damage
+        float before = targetEntity.Health;
+        targetEntity.TakeDamage(dmg);
+        bool killingBlow = targetEntity.Health <= 0f;
+
+        // Track hit
+        hitSet.Add(targetEntity);
+        hitList.Add(targetEntity);
+
+        // Notify
+        EventBus.Instance.Publish(new DamageApplied(
+            attacker: ownerEntity,
+            target:   targetEntity,
+            amount:   dmg,
+            killingBlow: killingBlow,
+            isStrong: currentAttackIsStrong,
+            onBeat:   false // PlayerAttackController knows onBeat; emit there in AttackResolved
+        ));
+
+        DebugHelper.LogCombat(() => $"[Weapon] Hit {targetEntity.name} for {dmg} ({before:F1}->{targetEntity.Health:F1})");
     }
 
     #endregion
