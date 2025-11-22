@@ -33,6 +33,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] public InputManager inputManager;
     [SerializeField] public TimeManager timeManager;
     [SerializeField] public LevelManager levelManager;
+    [SerializeField] private DialogManager dialogManager;
+
     #endregion
 
     #region Inspector: Global Configs (ScriptableObjects)
@@ -120,6 +122,7 @@ public class GameManager : MonoBehaviour
         inputManager ??= FindFirstObjectByType<InputManager>();
         timeManager  ??= FindFirstObjectByType<TimeManager>();
         levelManager ??= FindFirstObjectByType<LevelManager>();
+        dialogManager ??= FindFirstObjectByType<DialogManager>();
         MainPlayer   ??= FindFirstObjectByType<Player>();
 
         // Optionally push beatConfig into TimeManager if the field/property exists
@@ -147,18 +150,24 @@ public class GameManager : MonoBehaviour
     {
         // Configure
         inputManager?.Configure(this);
-        timeManager?.Configure(this);
-        levelManager?.Configure(this);
+        //timeManager?.Configure(this);
+        //levelManager?.Configure(this);
+        dialogManager?.Configure(this);
+
 
         // Initialize
         inputManager?.Initialize();
-        timeManager?.Initialize();
-        levelManager?.Initialize();
+        //timeManager?.Initialize();
+        //levelManager?.Initialize();
+        dialogManager?.Initialize();
 
         // Bind events
         inputManager?.BindEvents();
-        timeManager?.BindEvents();
-        levelManager?.BindEvents();
+        //timeManager?.BindEvents();
+        //levelManager?.BindEvents();
+        dialogManager?.BindEvents();
+
+
 
         DebugHelper.LogManager("RunManagerLifecycle completed (Configure/Initialize/Bind).");
         managersStarted = true;
