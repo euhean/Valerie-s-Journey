@@ -37,7 +37,7 @@ public class PlayerAttackController : MonoBehaviour
     #region Unity Lifecycle
     private void Awake()
     {
-        weapon = GetComponent<Weapon>();
+        weapon = GetComponentInChildren<Weapon>();
         if (combatConfig == null) DebugHelper.LogWarning("[PAC] CombatConfig not assigned.");
         if (beatConfig == null) DebugHelper.LogWarning("[PAC] BeatConfig not assigned.");
         

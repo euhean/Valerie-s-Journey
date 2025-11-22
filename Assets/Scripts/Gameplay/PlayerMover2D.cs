@@ -32,7 +32,7 @@ public class PlayerMover2D : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        weapon ??= GetComponentInChildren<Weapon>(true);
+        weapon ??= GetComponentInChildren<Weapon>();
         attackController ??= GetComponent<PlayerAttackController>();
     }
 

@@ -1,0 +1,12 @@
+{
+  "MSBuild": {
+    "UseLegacySdkResolver": false
+  },
+  "RoslynExtensionsOptions": {
+    "EnableAnalyzersSupport": true,
+    "LocationPaths": null
+  },
+  "FormattingOptions": {
+    "enableEditorConfigSupport": true
+  }
+}

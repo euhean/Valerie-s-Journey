@@ -31,7 +31,7 @@ public class Player : Entity
         attackController = GetComponent<PlayerAttackController>();
 
         // Find weapon in children if not assigned
-        playerWeapon ??= GetComponentInChildren<Weapon>(true);
+        playerWeapon ??= GetComponentInChildren<Weapon>();
         
         // Acquire managers from GameManager if not set in inspector
         // IMPORTANT: Must be in Awake (not Start) so they're available for OnEnable subscriptions
