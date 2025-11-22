@@ -88,6 +88,13 @@ public class Weapon : MonoBehaviour
             !ownerEntity.onDuty)
             return;
 
+        // Validate windowSeconds to prevent NaN, negative, or zero values from breaking the system
+        if (float.IsNaN(windowSeconds) || float.IsInfinity(windowSeconds) || windowSeconds <= 0f)
+        {
+            DebugHelper.LogWarning($"[Weapon] Invalid windowSeconds={windowSeconds}, clamping to 0.01f");
+            windowSeconds = 0.01f; // Minimum safe duration
+        }
+
         // Begin window
         isAttacking = true;
         currentAttackIsStrong = isStrongAttack;

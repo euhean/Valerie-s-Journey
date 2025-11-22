@@ -12,6 +12,7 @@ using UnityEngine.SceneManagement;
 /// - wires configs into player components on RegisterPlayer,
 /// - and does tidy shutdown on OnDisable.
 /// </summary>
+[DefaultExecutionOrder(-100)]
 public class GameManager : MonoBehaviour
 {
     #region Singleton
@@ -181,8 +182,11 @@ public class GameManager : MonoBehaviour
             timeManager?.UnbindEvents();
             levelManager?.UnbindEvents();
 
-            // Safely unsubscribe from EventBus
-            EventBus.Instance.ClearAll();
+            // NOTE: Do NOT call EventBus.Instance.ClearAll() here!
+            // ClearAll() removes ALL subscriptions globally, breaking other systems
+            // (Player, Enemy, UI, combat) that also use EventBus.
+            // Each manager is responsible for cleaning up its own EventBus subscriptions
+            // in its UnbindEvents() method.
         }
         catch (Exception ex)
         {

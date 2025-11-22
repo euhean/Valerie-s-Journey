@@ -40,15 +40,19 @@ public class PlayerAttackController : MonoBehaviour
         weapon = GetComponent<Weapon>();
         if (combatConfig == null) DebugHelper.LogWarning("[PAC] CombatConfig not assigned.");
         if (beatConfig == null) DebugHelper.LogWarning("[PAC] BeatConfig not assigned.");
-    }
-
-    private void Start()
-    {
+        
         // Acquire managers from GameManager if not set in inspector
+        // IMPORTANT: Must be in Awake (not Start) so they're available for OnEnable subscriptions
         inputManager ??= GameManager.Instance?.inputManager;
         timeManager  ??= GameManager.Instance?.timeManager;
-        if (inputManager == null) DebugHelper.LogError("[PAC] InputManager not found.");
-        if (timeManager == null)  DebugHelper.LogError("[PAC] TimeManager not found.");
+        
+        // Log errors if managers are still null after acquisition
+        if (GameManager.Instance == null)
+            DebugHelper.LogError("[PAC] GameManager.Instance is null during Awake!");
+        if (inputManager == null) 
+            DebugHelper.LogError("[PAC] InputManager not found. Attack input will not work.");
+        if (timeManager == null)  
+            DebugHelper.LogError("[PAC] TimeManager not found. Beat timing will not work.");
     }
 
     private void OnEnable()
@@ -84,7 +88,14 @@ public class PlayerAttackController : MonoBehaviour
         if (pressDSP - lastPressDSP < attackCooldown) return; // basic anti-spam
         lastPressDSP = pressDSP;
 
-        bool onBeat = timeManager != null && timeManager.IsOnBeat(pressDSP);
+        // TimeManager is critical for beat detection - fail fast if missing
+        if (timeManager == null)
+        {
+            DebugHelper.LogWarning("[PAC] TimeManager is null - cannot process attack timing! All attacks will fail.");
+            return;
+        }
+
+        bool onBeat = timeManager.IsOnBeat(pressDSP);
 
         // Combo rules:
         // - Off-beat press: allowed, but resets streak immediately (never contributes to strong)

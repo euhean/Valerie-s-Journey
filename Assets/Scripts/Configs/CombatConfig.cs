@@ -1,4 +1,4 @@
-// Assets/Scripts/Config/CombatConfig.cs
+// Assets/Scripts/Configs/CombatConfig.cs
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "CombatConfig", menuName = "Config/Combat", order = 0)]

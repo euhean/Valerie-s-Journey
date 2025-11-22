@@ -55,8 +55,8 @@ public class TimeManager : BaseManager
     {
         if (runtimeStarted) return;
         runtimeStarted = true;
-        // Start the metronome loop
-        metronomeCoroutine = CoroutineRunner.Instance.StartCoroutine(MetronomeLoop());
+        // Start the metronome loop using TimeManager's own coroutine capability
+        metronomeCoroutine = StartCoroutine(MetronomeLoop());
         DebugHelper.LogManager("[TimeManager] Runtime started.");
     }
 
@@ -66,7 +66,7 @@ public class TimeManager : BaseManager
         runtimeStarted = false;
         if (metronomeCoroutine != null)
         {
-            CoroutineRunner.Instance.StopCoroutine(metronomeCoroutine);
+            StopCoroutine(metronomeCoroutine);
             metronomeCoroutine = null;
         }
         running = false;
@@ -77,6 +77,12 @@ public class TimeManager : BaseManager
     {
         base.UnbindEvents();
         // nothing to unbind
+    }
+
+    private void OnDisable()
+    {
+        // Safety cleanup: stop runtime if active
+        StopRuntime();
     }
     #endregion
 
@@ -150,24 +156,4 @@ public class TimeManager : BaseManager
     /// </summary>
     public double LastBeatDSP => lastBeatDSP;
     #endregion
-}
-
-/// <summary>
-/// Utility singleton runner for coroutines inside non-Mono classes or to provide a centralized runner.
-/// If you already have a coroutine runner in your project, remove this and use that instead.
-/// </summary>
-public class CoroutineRunner : MonoBehaviour
-{
-    private static CoroutineRunner _instance;
-    public static CoroutineRunner Instance
-    {
-        get
-        {
-            if (_instance != null) return _instance;
-            var go = new GameObject("__CoroutineRunner");
-            DontDestroyOnLoad(go);
-            _instance = go.AddComponent<CoroutineRunner>();
-            return _instance;
-        }
-    }
 }

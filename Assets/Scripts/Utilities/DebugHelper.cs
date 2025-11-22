@@ -26,6 +26,38 @@ public static class DebugHelper
         catch { _config = null; }
     }
 
+    #region Public Properties for Debug Flags
+    /// <summary>Check if state logs are enabled. Useful for conditional expensive log operations.</summary>
+    public static bool enableStateLogs
+    {
+        get
+        {
+            EnsureConfig();
+            return _config == null || _config.enableStateLogs;
+        }
+    }
+
+    /// <summary>Check if manager logs are enabled. Useful for conditional expensive log operations.</summary>
+    public static bool enableManagerLogs
+    {
+        get
+        {
+            EnsureConfig();
+            return _config == null || _config.enableManagerLogs;
+        }
+    }
+
+    /// <summary>Check if combat logs are enabled. Useful for conditional expensive log operations.</summary>
+    public static bool enableCombatLogs
+    {
+        get
+        {
+            EnsureConfig();
+            return _config == null || _config.enableCombatLogs;
+        }
+    }
+    #endregion
+
     #region Compile-stripped logs (editor/dev only)
 
     [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]

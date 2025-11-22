@@ -32,37 +32,42 @@ public class Player : Entity
 
         // Find weapon in children if not assigned
         playerWeapon ??= GetComponentInChildren<Weapon>(true);
+        
+        // Acquire managers from GameManager if not set in inspector
+        // IMPORTANT: Must be in Awake (not Start) so they're available for OnEnable subscriptions
+        inputManager ??= GameManager.Instance?.inputManager;
+        timeManager  ??= GameManager.Instance?.timeManager;
+        
+        // Give mover the inputManager so it can run in FixedUpdate (only if both are non-null)
+        if (mover != null && inputManager != null) 
+            mover.inputManager = inputManager;
+        
+        // Log errors if managers are still null after acquisition
+        if (GameManager.Instance == null)
+            DebugHelper.LogError("[Player] GameManager.Instance is null during Awake!");
+        if (inputManager == null)
+            DebugHelper.LogError("[Player] InputManager not found. Input will not work.");
+        if (timeManager == null)
+            DebugHelper.LogError("[Player] TimeManager not found. Timing will not work.");
     }
 
     private void Start()
     {
-        // Acquire managers from GameManager if not set in inspector
-        inputManager ??= GameManager.Instance?.inputManager;
-        timeManager  ??= GameManager.Instance?.timeManager;
-
-        // Give mover the inputManager so it can run in FixedUpdate
-        if (mover != null) mover.inputManager = inputManager;
-
         // Self-register as main player
         GameManager.Instance?.RegisterPlayer(this);
 
         // Set duty state now that things are wired
         SetDutyState(true);
-
-        // Idempotent registration
-        attackController?.Register(inputManager, timeManager);
     }
 
     private void OnEnable()
     {
-        // Safe: will noop if already registered or managers missing
-        attackController?.Register(inputManager, timeManager);
+        // PlayerAttackController manages its own event subscriptions in OnEnable
     }
 
     private void OnDisable()
     {
-        // Safe: only unsubscribes if it was subscribed to this input
-        attackController?.Unregister(inputManager);
+        // PlayerAttackController manages its own event unsubscriptions in OnDisable
     }
     #endregion
 
