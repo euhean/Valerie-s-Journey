@@ -176,14 +176,29 @@ public class PlayerAttackController : MonoBehaviour
     #region Public API (for movement/aim systems)
     /// <summary>Call from your aiming code to know if aim updates should be ignored.</summary>
     public bool IsAimLocked() => isAimLocked;
-    #endregion
 
-    #region Helpers
-    private void ResetCombo(string reason)
+    /// <summary>Resets the combo streak (called when player takes damage).</summary>
+    public void ResetCombo(string reason = "external")
     {
         if (onBeatStreak != 0) DebugHelper.LogCombat($"[PAC] Combo reset ({reason}).");
         onBeatStreak = 0;
         beatsSinceLastOnBeatPress = 0;
+    }
+
+    /// <summary>Aborts any ongoing attack and unlocks aim (called when player takes damage).</summary>
+    public void AbortAttack()
+    {
+        if (attackInProgress)
+        {
+            attackInProgress = false;
+            if (strongAimLockCoro != null)
+            {
+                StopCoroutine(strongAimLockCoro);
+                strongAimLockCoro = null;
+            }
+            isAimLocked = false;
+            DebugHelper.LogCombat("[PAC] Attack aborted due to damage.");
+        }
     }
     #endregion
 }

@@ -85,7 +85,7 @@ public class PlayerMover2D : MonoBehaviour
         if (velocity.sqrMagnitude < StopThreshold * StopThreshold)
             velocity = Vector2.zero;
 
-        rb.velocity = velocity;
+        rb.linearVelocity = velocity;
 
         // ----- AIM FORWARDING -----
         // Skip aim updates if strong attack is locking aim

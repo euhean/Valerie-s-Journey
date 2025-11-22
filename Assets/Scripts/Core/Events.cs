@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 /// <summary>
 /// Basic spawn events used by LevelManager (and future systems).
 /// </summary>

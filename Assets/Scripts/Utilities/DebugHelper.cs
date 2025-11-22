@@ -117,6 +117,13 @@ public static class DebugHelper
     }
 
     [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
+    public static void LogState(string message)
+    {
+        EnsureConfig();
+        if (_config == null || _config.enableStateLogs) UnityEngine.Debug.Log("[State] " + message);
+    }
+
+    [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
     public static void LogState(Func<string> provider)
     {
         EnsureConfig();
