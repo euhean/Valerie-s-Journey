@@ -27,20 +27,33 @@ public class Player : Entity
     protected override void Awake()
     {
         base.Awake();
+        
+        // 1. Get weapon GameObject FIRST
+        playerWeapon ??= GetComponentInChildren<Weapon>();
+        GameObject weaponGO = playerWeapon?.gameObject;
+        
+        // 2. Get other components
         mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
-
-        // Find weapon in children if not assigned
-        playerWeapon ??= GetComponentInChildren<Weapon>();
         
         // Acquire managers from GameManager if not set in inspector
         // IMPORTANT: Must be in Awake (not Start) so they're available for OnEnable subscriptions
         inputManager ??= GameManager.Instance?.inputManager;
         timeManager  ??= GameManager.Instance?.timeManager;
         
-        // Give mover the inputManager so it can run in FixedUpdate (only if both are non-null)
-        if (mover != null && inputManager != null) 
-            mover.inputManager = inputManager;
+        // 3. Pass weapon GameObject and managers to components
+        if (mover != null)
+        {
+            mover.weapon = weaponGO?.GetComponent<Weapon>();
+            mover.attackController = attackController;
+            if (inputManager != null) 
+                mover.inputManager = inputManager;
+        }
+        
+        if (attackController != null)
+        {
+            attackController.SetWeapon(weaponGO?.GetComponent<Weapon>());
+        }
         
         // Log errors if managers are still null after acquisition
         if (GameManager.Instance == null)

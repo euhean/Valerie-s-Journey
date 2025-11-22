@@ -9,11 +9,6 @@ public class Enemy : Entity
 {
     private static WaitForSeconds _waitForSeconds0_25 = new(0.25f);
     
-    #region Inspector: Health Settings
-    [Header("Enemy Health Settings")]
-    public new float maxHealth = GameConstants.ENEMY_MAX_HEALTH; // Balanced for perfect combo (40 damage)
-    #endregion
-    
     #region Inspector: Visuals
     [Header("Enemy Visual Settings")]
     public Color aliveColor = GameConstants.ENEMY_ALIVE_COLOR;
@@ -40,6 +35,9 @@ public class Enemy : Entity
     #region Unity Lifecycle
     protected override void Awake()
     {
+        // Set enemy-specific max health before base.Awake() initializes Health
+        maxHealth = GameConstants.ENEMY_MAX_HEALTH;
+        
         base.Awake();
         gameObject.tag = "Enemy";
         UpdateVisuals();

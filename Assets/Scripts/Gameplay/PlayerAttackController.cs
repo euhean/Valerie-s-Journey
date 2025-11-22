@@ -6,7 +6,6 @@ using UnityEngine;
 /// Handles attack timing, combo rules, aim lock during strong, and emits AttackResolved.
 /// Minimal event pipeline: Weapon will emit DamageApplied per hit in the next step.
 /// </summary>
-[RequireComponent(typeof(Weapon))]
 public class PlayerAttackController : MonoBehaviour
 {
     #region Inspector
@@ -37,7 +36,6 @@ public class PlayerAttackController : MonoBehaviour
     #region Unity Lifecycle
     private void Awake()
     {
-        weapon = GetComponentInChildren<Weapon>();
         if (combatConfig == null) DebugHelper.LogWarning("[PAC] CombatConfig not assigned.");
         if (beatConfig == null) DebugHelper.LogWarning("[PAC] BeatConfig not assigned.");
         
@@ -174,6 +172,9 @@ public class PlayerAttackController : MonoBehaviour
     #endregion
 
     #region Public API (for movement/aim systems)
+    /// <summary>Called by Player to set the weapon reference.</summary>
+    public void SetWeapon(Weapon w) => weapon = w;
+    
     /// <summary>Call from your aiming code to know if aim updates should be ignored.</summary>
     public bool IsAimLocked() => isAimLocked;
 
