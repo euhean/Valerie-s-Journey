@@ -9,6 +9,10 @@ EditorBuildSettings:
     path: Assets/Scenes/SampleScene.unity
     guid: 2cda990e2423bbf4892e6590ba056729
   m_configObjects:
+<<<<<<< Updated upstream
     com.unity.input.settings: {fileID: 11400000, guid: 1634edbd071639e7790374e3ac5dd82d, type: 2}
+=======
+    com.unity.input.settings: {fileID: 11400000, guid: 1c66b1b7a5691764f903d92381425351, type: 2}
+>>>>>>> Stashed changes
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 3590b91b4603b465dbb4216d601bff33, type: 3}
   m_UseUCBPForAssetBundles: 0
