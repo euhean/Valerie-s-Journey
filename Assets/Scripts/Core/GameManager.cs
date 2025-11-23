@@ -151,23 +151,20 @@ public class GameManager : MonoBehaviour
         // Configure
         inputManager?.Configure(this);
         timeManager?.Configure(this);
-        //levelManager?.Configure(this);
+        levelManager?.Configure(this);
         dialogManager?.Configure(this);
-
 
         // Initialize
         inputManager?.Initialize();
         timeManager?.Initialize();
-        //levelManager?.Initialize();
+        levelManager?.Initialize();
         dialogManager?.Initialize();
 
         // Bind events
         inputManager?.BindEvents();
         timeManager?.BindEvents();
-        //levelManager?.BindEvents();
-        dialogManager?.BindEvents()
-
-
+        levelManager?.BindEvents();
+        dialogManager?.BindEvents();
 
         DebugHelper.LogManager("RunManagerLifecycle completed (Configure/Initialize/Bind).");
         managersStarted = true;
@@ -185,17 +182,13 @@ public class GameManager : MonoBehaviour
             inputManager?.StopRuntime();
             timeManager?.StopRuntime();
             levelManager?.StopRuntime();
+            dialogManager?.StopRuntime();
 
             // Then unbind events
             inputManager?.UnbindEvents();
             timeManager?.UnbindEvents();
             levelManager?.UnbindEvents();
-
-            // NOTE: Do NOT call EventBus.Instance.ClearAll() here!
-            // ClearAll() removes ALL subscriptions globally, breaking other systems
-            // (Player, Enemy, UI, combat) that also use EventBus.
-            // Each manager is responsible for cleaning up its own EventBus subscriptions
-            // in its UnbindEvents() method.
+            dialogManager?.UnbindEvents();
         }
         catch (Exception ex)
         {
