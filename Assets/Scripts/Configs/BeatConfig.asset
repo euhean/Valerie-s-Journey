@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 62d5cbe2432e0ec4eb9517516852a8da, type: 3}
   m_Name: BeatConfig
   m_EditorClassIdentifier: 
-  onBeatWindowSec: 0.07
+  onBeatWindowSec: 0.1
   resetOnOffBeat: 1
   resetOnInactivityBeats: 1

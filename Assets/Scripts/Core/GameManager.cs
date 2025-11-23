@@ -150,22 +150,22 @@ public class GameManager : MonoBehaviour
     {
         // Configure
         inputManager?.Configure(this);
-        //timeManager?.Configure(this);
+        timeManager?.Configure(this);
         //levelManager?.Configure(this);
         dialogManager?.Configure(this);
 
 
         // Initialize
         inputManager?.Initialize();
-        //timeManager?.Initialize();
+        timeManager?.Initialize();
         //levelManager?.Initialize();
         dialogManager?.Initialize();
 
         // Bind events
         inputManager?.BindEvents();
-        //timeManager?.BindEvents();
+        timeManager?.BindEvents();
         //levelManager?.BindEvents();
-        dialogManager?.BindEvents();
+        dialogManager?.BindEvents()
 
 
 

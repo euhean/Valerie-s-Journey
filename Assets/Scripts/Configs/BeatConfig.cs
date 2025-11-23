@@ -5,7 +5,7 @@ using UnityEngine;
 public class BeatConfig : ScriptableObject
 {
     [Tooltip("Half-window in seconds considered 'on beat' (mirrors TimeManager)")]
-    public float onBeatWindowSec = 0.07f;
+    public float onBeatWindowSec = 0.1f;
 
     [Header("Combo Reset Rules")]
     [Tooltip("Reset combo if an attack is done off-beat")]

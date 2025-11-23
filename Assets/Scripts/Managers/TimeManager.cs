@@ -94,7 +94,7 @@ public class TimeManager : BaseManager
         lastBeatDSP = AudioSettings.dspTime;
         double dspNow = AudioSettings.dspTime;
         double secondsPerBeat = 60.0 / Math.Max(1f, bpm);
-        nextBeatDSP = dspNow + secondsPerBeat * 0.1; // small offset to avoid immediately firing
+        nextBeatDSP = dspNow + secondsPerBeat;
 
         while (running)
         {
