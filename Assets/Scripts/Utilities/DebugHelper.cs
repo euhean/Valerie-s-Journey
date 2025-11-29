@@ -110,7 +110,6 @@ public static class DebugHelper
     {
         UnityEngine.Debug.LogException(ex);
     }
-<<<<<<< HEAD
     
     /// <summary>Check if state logs are enabled (for conditional logging).</summary>
     public static bool StateLogsEnabled
