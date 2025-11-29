@@ -21,12 +21,13 @@ public class PlayerMover2D : MonoBehaviour
     private Vector2 velocity;
     private bool inDeadzone = false;
 
-    private float Speed         => movementConfig ? movementConfig.playerSpeed         : GameConstants.PLAYER_SPEED;
-    private float Accel         => movementConfig ? movementConfig.playerAcceleration  : GameConstants.PLAYER_ACCELERATION;
-    private float Decel         => movementConfig ? movementConfig.playerDeceleration  : GameConstants.PLAYER_DECELERATION;
-    private float ReverseBrake  => movementConfig ? movementConfig.playerReverseBrake  : GameConstants.PLAYER_REVERSE_BRAKE;
-    private float DeadEnter     => movementConfig ? movementConfig.deadzoneEnter       : GameConstants.PLAYER_DEADZONE_ENTER;
-    private float DeadExit      => movementConfig ? movementConfig.deadzoneExit        : GameConstants.PLAYER_DEADZONE_EXIT;
+    private float Speed         => movementConfig?.playerSpeed         ?? GameConstants.PLAYER_SPEED;
+    private float Accel         => movementConfig?.playerAcceleration  ?? GameConstants.PLAYER_ACCELERATION;
+    private float Decel         => movementConfig?.playerDeceleration  ?? GameConstants.PLAYER_DECELERATION;
+    private float ReverseBrake  => movementConfig?.playerReverseBrake  ?? GameConstants.PLAYER_REVERSE_BRAKE;
+    private float DeadEnter     => movementConfig?.deadzoneEnter       ?? GameConstants.PLAYER_DEADZONE_ENTER;
+    private float DeadExit      => movementConfig?.deadzoneExit        ?? GameConstants.PLAYER_DEADZONE_EXIT;
+    private float StopThreshold => movementConfig?.stopThreshold       ?? GameConstants.PLAYER_STOP_THRESHOLD;
 
     private void Awake()
     {
@@ -62,24 +63,35 @@ public class PlayerMover2D : MonoBehaviour
         Vector2 targetVel = move * Speed;
         Vector2 delta = targetVel - velocity;
 
-        // Heavier brake when reversing
-        float accel = (Vector2.Dot(velocity, targetVel) < 0f) ? ReverseBrake : Accel;
+        // Determine which acceleration rate to use:
+        // 1. Reversing (moving opposite to target) → use ReverseBrake (hardest)
+        // 2. Decelerating (slowing down) → use Decel
+        // 3. Accelerating (speeding up) → use Accel
+        float accel;
+        if (Vector2.Dot(velocity, targetVel) < 0f)
+        {
+            // Moving opposite direction from input → hard brake
+            accel = ReverseBrake;
+        }
+        else if (velocity.sqrMagnitude > targetVel.sqrMagnitude)
+        {
+            // Current speed is higher than target → slowing down → deceleration
+            accel = Decel;
+        }
+        else
+        {
+            // Target speed is higher than current → speeding up → acceleration
+            accel = Accel;
+        }
+
         Vector2 step = Vector2.ClampMagnitude(delta, accel * Time.fixedDeltaTime);
         velocity += step;
 
-        // Stop threshold
-        if (velocity.sqrMagnitude < GameConstants.PLAYER_STOP_THRESHOLD * GameConstants.PLAYER_STOP_THRESHOLD)
+        // Stop threshold: snap to zero when velocity is very small to prevent drift
+        if (velocity.sqrMagnitude < StopThreshold * StopThreshold)
             velocity = Vector2.zero;
 
-        // ----- COLLISION-AWARE MOVEMENT -----
-        // Use MovePosition instead of directly setting velocity to respect collisions
-        if (velocity.sqrMagnitude > 0.01f)
-        {
-            Vector2 newPosition = rb.position + velocity * Time.fixedDeltaTime;
-            rb.MovePosition(newPosition);
-        }
-        else
-            rb.linearVelocity = Vector2.zero; 
+        rb.linearVelocity = velocity;
 
         // ----- AIM FORWARDING -----
         // Skip aim updates if strong attack is locking aim

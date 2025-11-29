@@ -18,9 +18,6 @@ public class InputManager : BaseManager
     public InputActionReference navigateAction;
     public InputActionReference submitAction;
     public InputActionReference cancelAction;
-
-    [Header("Mouse Aim (PC)")]
-    public Camera worldCamera; // if null -> Camera.main
     #endregion
 
     #region Public State
@@ -41,30 +38,45 @@ public class InputManager : BaseManager
     public override void Configure(GameManager gm)
     {
         base.Configure(gm);
-        worldCamera ??= Camera.main;
+        DebugHelper.LogManager("InputManager: Configured.");
     }
 
     public override void Initialize() { }
 
     public override void BindEvents()
     {
-        if (actionsBound) return;
+        if (actionsBound)
+        {
+            DebugHelper.LogWarning("InputManager: Events already bound, skipping.");
+            return;
+        }
 
         if (basicAction && basicAction.action != null)
             basicAction.action.performed += HandleBasicPerformed;
+        else
+            DebugHelper.LogWarning("InputManager: basicAction is null or invalid.");
 
         if (submitAction && submitAction.action != null)
-            submitAction.action.performed += _ => OnSubmitPressed?.Invoke();
+            submitAction.action.performed += HandleSubmitPerformed;
+        else
+            DebugHelper.LogWarning("InputManager: submitAction is null or invalid.");
 
         if (cancelAction && cancelAction.action != null)
-            cancelAction.action.performed += _ => OnCancelPressed?.Invoke();
+            cancelAction.action.performed += HandleCancelPerformed;
+        else
+            DebugHelper.LogWarning("InputManager: cancelAction is null or invalid.");
 
         actionsBound = true;
+        DebugHelper.LogManager("InputManager: Events bound successfully.");
     }
 
     public override void StartRuntime()
     {
-        if (runtimeActive) return;
+        if (runtimeActive)
+        {
+            DebugHelper.LogWarning("InputManager: Runtime already active, skipping.");
+            return;
+        }
 
         moveAction?.action?.Enable();
         aimAction?.action?.Enable();
@@ -74,34 +86,46 @@ public class InputManager : BaseManager
         cancelAction?.action?.Enable();
 
         runtimeActive = true;
+        DebugHelper.LogManager("InputManager: Runtime started, all actions enabled.");
     }
 
     public override void StopRuntime()
     {
-        if (!runtimeActive) return;
+        if (!runtimeActive)
+        {
+            DebugHelper.LogWarning("InputManager: Runtime not active, nothing to stop.");
+            return;
+        }
         DisableAll();
         runtimeActive = false;
+        DebugHelper.LogManager("InputManager: Runtime stopped, all actions disabled.");
     }
 
     public override void UnbindEvents()
     {
-        if (!actionsBound) return;
+        if (!actionsBound)
+        {
+            DebugHelper.LogWarning("InputManager: Events not bound, nothing to unbind.");
+            return;
+        }
 
         if (basicAction && basicAction.action != null)
             basicAction.action.performed -= HandleBasicPerformed;
 
         if (submitAction && submitAction.action != null)
-            submitAction.action.performed -= _ => OnSubmitPressed?.Invoke();
+            submitAction.action.performed -= HandleSubmitPerformed;
 
         if (cancelAction && cancelAction.action != null)
-            cancelAction.action.performed -= _ => OnCancelPressed?.Invoke();
+            cancelAction.action.performed -= HandleCancelPerformed;
 
         actionsBound = false;
+        DebugHelper.LogManager("InputManager: Events unbound successfully.");
     }
 
     private void OnDisable()
     {
         // Safety net for domain reloads/scene changes
+        DebugHelper.LogManager("InputManager: OnDisable called, cleaning up...");
         DisableAll();
         UnbindEvents();
     }
@@ -112,22 +136,13 @@ public class InputManager : BaseManager
     {
         if (!runtimeActive) return;
 
-        // Gamepad / Keyboard movement from action
+        // Read movement input (gamepad stick or WASD)
         Move = moveAction && moveAction.action != null ? moveAction.action.ReadValue<Vector2>() : Vector2.zero;
 
-        // Aim:
-        // - If aimAction has value (gamepad RS), use it directly.
-        // - Else derive from mouse (PC): vector from player to mouse world pos should be set by gameplay code,
-        //   but as a fallback here we feed screen-space mouse delta as a direction if no aim action is present.
-        Vector2 aimVec = Vector2.zero;
-
-        if (aimAction && aimAction.action != null)
-            aimVec = aimAction.action.ReadValue<Vector2>();
-
-        // Derive mouse aim as world direction (requires a player position — recommended to be handled in gameplay).
-        // Here we just keep aimVec if provided; gameplay can set precise aim via a dedicated system.
-
-        Aim = aimVec;
+        // Read aim input (gamepad right stick)
+        // Note: Mouse aiming should be handled in gameplay code (PlayerMover2D/Weapon)
+        // where the player's world position is available for screen-to-world conversion
+        Aim = aimAction && aimAction.action != null ? aimAction.action.ReadValue<Vector2>() : Vector2.zero;
 
         // UI navigate (optional)
         Navigate = navigateAction && navigateAction.action != null ? navigateAction.action.ReadValue<Vector2>() : Vector2.zero;
@@ -138,7 +153,21 @@ public class InputManager : BaseManager
     private void HandleBasicPerformed(InputAction.CallbackContext ctx)
     {
         if (!ctx.performed) return;
-        OnBasicPressedDSP?.Invoke(AudioSettings.dspTime);
+        double dspTime = AudioSettings.dspTime;
+        DebugHelper.Log(() => $"InputManager: Basic action pressed at DSP {dspTime:F4}");
+        OnBasicPressedDSP?.Invoke(dspTime);
+    }
+
+    private void HandleSubmitPerformed(InputAction.CallbackContext ctx)
+    {
+        DebugHelper.Log("InputManager: Submit action pressed");
+        OnSubmitPressed?.Invoke();
+    }
+
+    private void HandleCancelPerformed(InputAction.CallbackContext ctx)
+    {
+        DebugHelper.Log("InputManager: Cancel action pressed");
+        OnCancelPressed?.Invoke();
     }
     #endregion
 

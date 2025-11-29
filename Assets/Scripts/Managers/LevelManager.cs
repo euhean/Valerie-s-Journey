@@ -82,9 +82,8 @@ public class LevelManager : BaseManager
     public override void Teardown()
     {
         DebugHelper.LogManager("LevelManager.Teardown()");
-        EventBus.Instance?.Unsubscribe<GameplayEvent>(OnGameplayEvent);
-        EventBus.Instance?.Unsubscribe<PlayerDiedEvent>(OnPlayerDied);
-        isRunning = false;
+        StopRuntime();
+        UnbindEvents();
     }
     #endregion
 
@@ -112,6 +111,7 @@ public class LevelManager : BaseManager
         var player = go.GetComponent<Player>();
         if (!player)
         {
+            Destroy(go); // Clean up the instantiated GameObject to prevent memory leak
             DebugHelper.LogWarning("Spawned player prefab does not contain Player component.");
             return null;
         }

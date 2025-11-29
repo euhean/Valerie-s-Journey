@@ -35,6 +35,7 @@ public class Enemy : Entity
     #region Unity Lifecycle
     protected override void Awake()
     {
+        // Set enemy-specific max health before base.Awake() initializes Health
         maxHealth = GameConstants.ENEMY_MAX_HEALTH;
         
         base.Awake();

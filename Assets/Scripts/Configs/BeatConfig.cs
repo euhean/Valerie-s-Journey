@@ -1,4 +1,4 @@
-// Assets/Scripts/Config/BeatConfig.cs
+// Assets/Scripts/Configs/BeatConfig.cs
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "BeatConfig", menuName = "Config/Beat", order = 1)]

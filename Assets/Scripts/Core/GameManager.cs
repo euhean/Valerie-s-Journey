@@ -11,6 +11,7 @@ using UnityEngine.SceneManagement;
 /// - wires configs into player components on RegisterPlayer,
 /// - and does tidy shutdown on OnDisable.
 /// </summary>
+[DefaultExecutionOrder(-100)]
 public class GameManager : MonoBehaviour
 {
     #region Singleton
@@ -31,6 +32,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] public InputManager inputManager;
     [SerializeField] public TimeManager timeManager;
     [SerializeField] public LevelManager levelManager;
+    [SerializeField] private DialogManager dialogManager;
     #endregion
 
     #region Inspector: Global Configs (ScriptableObjects)
@@ -118,6 +120,7 @@ public class GameManager : MonoBehaviour
         inputManager ??= FindFirstObjectByType<InputManager>();
         timeManager  ??= FindFirstObjectByType<TimeManager>();
         levelManager ??= FindFirstObjectByType<LevelManager>();
+        dialogManager ??= FindFirstObjectByType<DialogManager>();
         MainPlayer   ??= FindFirstObjectByType<Player>();
 
         // Direct assignment instead of reflection
@@ -136,16 +139,19 @@ public class GameManager : MonoBehaviour
         inputManager?.Configure(this);
         timeManager?.Configure(this);
         levelManager?.Configure(this);
+        dialogManager?.Configure(this);
 
         // Initialize
         inputManager?.Initialize();
         timeManager?.Initialize();
         levelManager?.Initialize();
+        dialogManager?.Initialize();
 
         // Bind events
         inputManager?.BindEvents();
         timeManager?.BindEvents();
         levelManager?.BindEvents();
+        dialogManager?.BindEvents();
 
         DebugHelper.LogManager("RunManagerLifecycle completed (Configure/Initialize/Bind).");
         managersStarted = true;
@@ -163,11 +169,13 @@ public class GameManager : MonoBehaviour
             inputManager?.StopRuntime();
             timeManager?.StopRuntime();
             levelManager?.StopRuntime();
+            dialogManager?.StopRuntime();
 
             // Then unbind events
             inputManager?.UnbindEvents();
             timeManager?.UnbindEvents();
             levelManager?.UnbindEvents();
+            dialogManager?.UnbindEvents();
 
             // Safely unsubscribe from EventBus
             EventBus.Instance.ClearAll();

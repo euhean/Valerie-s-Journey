@@ -30,7 +30,6 @@ public class TimeManager : BaseManager
     private double nextBeatDSP = 0.0;
     private int beatIndex = 0;
     private double lastBeatDSP = -9999.0;
-
     // Small guard to prevent spamming StartRuntime
     private bool runtimeStarted = false;
 
@@ -47,7 +46,6 @@ public class TimeManager : BaseManager
             audioSource.playOnAwake = false;
             audioSource.volume = 0.5f;
         }
-
         // BeatConfig might already be assigned by GameManager.AutoConfigureScene
         if (beatConfig == null)
         {
@@ -93,6 +91,12 @@ public class TimeManager : BaseManager
     {
         base.UnbindEvents();
         // nothing to unbind
+    }
+
+    private void OnDisable()
+    {
+        // Safety cleanup: stop runtime if active
+        StopRuntime();
     }
     #endregion
 

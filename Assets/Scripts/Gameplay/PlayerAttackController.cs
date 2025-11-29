@@ -51,6 +51,7 @@ public class PlayerAttackController : MonoBehaviour
         // Acquire managers from GameManager if not set in inspector
         inputManager ??= GameManager.Instance?.inputManager;
         timeManager  ??= GameManager.Instance?.timeManager;
+        
         if (inputManager == null) DebugHelper.LogError("[PAC] InputManager not found.");
         if (timeManager == null)  DebugHelper.LogError("[PAC] TimeManager not found.");
     }
@@ -169,6 +170,9 @@ public class PlayerAttackController : MonoBehaviour
     #endregion
 
     #region Public API (for movement/aim systems)
+    /// <summary>Called by Player to set the weapon reference.</summary>
+    public void SetWeapon(Weapon w) => weapon = w;
+
     /// <summary>Call from your aiming code to know if aim updates should be ignored.</summary>
     public bool IsAimLocked() => isAimLocked;
     
@@ -183,9 +187,7 @@ public class PlayerAttackController : MonoBehaviour
         isAimLocked = false;
         attackInProgress = false;
     }
-    #endregion
 
-    #region Helpers
     public void ResetCombo(string reason)
     {
         if (onBeatStreak != 0) DebugHelper.LogCombat($"[PAC] Combo reset ({reason}).");

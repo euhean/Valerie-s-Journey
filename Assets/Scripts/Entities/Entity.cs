@@ -45,6 +45,7 @@ public abstract class Entity : MonoBehaviour
         // Auto-configure components to work together
         ComponentHelper.AutoConfigureEntity(this, IsStaticEntity());
     }
+    #endregion
 
     protected virtual void Start()
     {

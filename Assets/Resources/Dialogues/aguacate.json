@@ -1,0 +1,32 @@
+[
+  {
+    "speaker": "Aguacate",
+    "text": "Me gusta el Mango",
+    "portraitName": "Aguacate"
+  },
+  {
+    "speaker": "Mango",
+    "text": "Pues a mi me gusta Piña",
+    "portraitName": "Mango"
+  },
+  {
+    "speaker": "Piña",
+    "text": "A mi me gusta el Agua",
+    "portraitName": "Piña"
+  },
+    {
+    "speaker": "Mango",
+    "text": "Porqueee? Yo que hice mal?",
+    "portraitName": "Mango"
+  },
+    {
+    "speaker": "Piña",
+    "text": "No me gusta el color naranja",
+    "portraitName": "Piña"
+  },
+    {
+    "speaker": "Aguacate",
+    "text": "Que feo esooooooo",
+    "portraitName": "Aguacate"
+  }
+]
