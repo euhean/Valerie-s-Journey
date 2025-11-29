@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Minimal global event bus (singleton). Generic typed pub/sub.
-/// Thread-safe-ish (simple lock) and uses DebugHelper for logging.
+/// Global event bus (singleton). Thread-safe pub/sub with snapshot iteration.
+/// CRITICAL: Uses snapshot copy during publish to prevent modification-during-iteration crashes.
 /// </summary>
 public sealed class EventBus
 {
@@ -34,6 +34,9 @@ public sealed class EventBus
         }
     }
 
+    /// <summary>
+    /// One-shot subscription: auto-unsubscribes after first invocation
+    /// </summary>
     public void SubscribeOnce<T>(Action<T> handler)
     {
         if (handler == null) return;
@@ -60,6 +63,9 @@ public sealed class EventBus
         }
     }
 
+    /// <summary>
+    /// DANGER: Clears all subscriptions. Only call during full game reset.
+    /// </summary>
     public void ClearAll()
     {
         lock (_lock) { _subscribers.Clear(); }
@@ -67,6 +73,10 @@ public sealed class EventBus
     #endregion
 
     #region Publish
+    /// <summary>
+    /// Publishes event to all subscribers. Uses snapshot to prevent modification-during-iteration.
+    /// Exceptions in handlers are caught and logged (doesn't crash other handlers).
+    /// </summary>
     public void Publish<T>(T evt)
     {
         var t = typeof(T);
@@ -74,7 +84,7 @@ public sealed class EventBus
         lock (_lock)
         {
             if (_subscribers.TryGetValue(t, out var list))
-                copy = new List<Delegate>(list); // snapshot
+                copy = new List<Delegate>(list); // Snapshot prevents concurrent modification
         }
 
         if (copy == null) return;
@@ -87,7 +97,7 @@ public sealed class EventBus
             }
             catch (Exception ex)
             {
-                // use DebugHelper so logs follow your build rules
+                // Isolated failure: log but continue to other handlers
                 DebugHelper.LogError($"EventBus handler error for {t.Name}: {ex.Message}");
                 DebugHelper.LogException(ex);
             }

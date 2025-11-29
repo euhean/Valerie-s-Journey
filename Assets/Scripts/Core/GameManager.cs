@@ -4,12 +4,8 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Central orchestrator. Singleton that persists across scenes and
-/// wires manager lifecycles. This variant:
-/// - exposes global ScriptableObject configs (assign in inspector),
-/// - safely stops/unbinds managers before scene reconfigure,
-/// - wires configs into player components on RegisterPlayer,
-/// - and does tidy shutdown on OnDisable.
+/// Central orchestrator. Singleton that persists across scenes and wires manager lifecycles.
+/// CRITICAL: Manages full lifecycle: Configure → Initialize → BindEvents → StartRuntime → StopRuntime → UnbindEvents
 /// </summary>
 [DefaultExecutionOrder(-100)]
 public class GameManager : MonoBehaviour
@@ -52,6 +48,7 @@ public class GameManager : MonoBehaviour
     #region Unity lifecycle
     private void Awake()
     {
+        // Singleton enforcement - destroy duplicates
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -71,19 +68,18 @@ public class GameManager : MonoBehaviour
     private void OnDisable()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
-        // Ensure managers stop when manager goes away (domain reload / playmode stop)
+        // Safety: cleanup on domain reload/playmode exit
         StopManagers();
     }
 
     private IEnumerator Start()
     {
-        // allow scene Awake/OnEnable to run
-        yield return null;
+        yield return null; // Let scene Awake/OnEnable complete first
 
         AutoConfigureScene();
         RunManagerLifecycle();
 
-        // enter gameplay state (this will start runtimes)
+        // CRITICAL: Entering Gameplay triggers manager StartRuntime()
         ChangeState(GameState.Gameplay);
     }
     #endregion
@@ -93,10 +89,10 @@ public class GameManager : MonoBehaviour
     {
         DebugHelper.LogManager($"Scene loaded: {scene.name} — rewire managers");
 
-        // stop and unbind old managers to avoid stale subscriptions/ghost calls
+        // CRITICAL: Stop/unbind before reconfiguring to prevent ghost subscriptions
         StopManagers();
 
-        // clear cached scene-local refs so AutoConfigureScene will find new ones
+        // Clear scene-local refs so AutoConfigureScene finds new instances
         inputManager = null;
         timeManager = null;
         levelManager = null;
@@ -105,7 +101,7 @@ public class GameManager : MonoBehaviour
         AutoConfigureScene();
         RunManagerLifecycle();
 
-        // If we are currently in Gameplay, restart manager runtime
+        // Restart runtime if we're already in gameplay
         if (State == GameState.Gameplay)
         {
             inputManager?.StartRuntime();
@@ -116,14 +112,14 @@ public class GameManager : MonoBehaviour
 
     private void AutoConfigureScene()
     {
-        // Find managers in scene if not set in inspector
+        // Fallback discovery: use inspector refs or find in scene
         inputManager ??= FindFirstObjectByType<InputManager>();
         timeManager  ??= FindFirstObjectByType<TimeManager>();
         levelManager ??= FindFirstObjectByType<LevelManager>();
         dialogManager ??= FindFirstObjectByType<DialogManager>();
         MainPlayer   ??= FindFirstObjectByType<Player>();
 
-        // Direct assignment instead of reflection
+        // Wire BeatConfig directly (no reflection)
         if (timeManager != null && beatConfig != null)
             timeManager.beatConfig = beatConfig;
 
@@ -131,23 +127,23 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Configure -> Initialize -> Bind (does NOT call StartRuntime).
+    /// Full lifecycle: Configure → Initialize → BindEvents (does NOT start runtime yet)
     /// </summary>
     private void RunManagerLifecycle()
     {
-        // Configure
+        // Phase 1: Configure (inject dependencies)
         inputManager?.Configure(this);
         timeManager?.Configure(this);
         levelManager?.Configure(this);
         dialogManager?.Configure(this);
 
-        // Initialize
+        // Phase 2: Initialize (setup internal state)
         inputManager?.Initialize();
         timeManager?.Initialize();
         levelManager?.Initialize();
         dialogManager?.Initialize();
 
-        // Bind events
+        // Phase 3: BindEvents (subscribe to event bus)
         inputManager?.BindEvents();
         timeManager?.BindEvents();
         levelManager?.BindEvents();
@@ -165,22 +161,21 @@ public class GameManager : MonoBehaviour
 
         try
         {
-            // Stop runtime first (idempotent)
+            // Phase 1: Stop runtime loops (idempotent)
             inputManager?.StopRuntime();
             timeManager?.StopRuntime();
             levelManager?.StopRuntime();
             dialogManager?.StopRuntime();
 
-            // Then unbind events
+            // Phase 2: Unbind events (each manager unsubscribes itself)
             inputManager?.UnbindEvents();
             timeManager?.UnbindEvents();
             levelManager?.UnbindEvents();
             dialogManager?.UnbindEvents();
 
-            // Do NOT call EventBus.Instance.ClearAll() here.
-            // It wipes out subscriptions from non-manager entities (like Enemies/Player)
-            // which breaks the game if StopManagers is called during gameplay.
-            // Managers are responsible for unsubscribing themselves in UnbindEvents().
+            // NOTE: Do NOT call EventBus.ClearAll() here!
+            // It would wipe entity subscriptions (Enemy, Player) breaking gameplay.
+            // Managers must clean up their own subscriptions in UnbindEvents().
         }
         catch (Exception ex)
         {
@@ -214,13 +209,14 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Register a spawned player and wire manager refs + config assets into its components.
+    /// Register spawned player and wire all dependencies (managers + configs).
+    /// IDEMPOTENT: skips if same player already registered.
     /// </summary>
     public void RegisterPlayer(Player p)
     {
         if (p == null) return;
         
-        // Idempotency guard: if this player is already registered, skip
+        // Idempotency: prevent duplicate registration
         if (MainPlayer == p)
         {
             DebugHelper.LogManager($"[GameManager] Player {p.name} already registered. Skipping.");
@@ -239,13 +235,14 @@ public class GameManager : MonoBehaviour
 
     private void WirePlayerManagers(Player p)
     {
+        // Inject manager refs into player
         p.inputManager ??= inputManager;
         p.timeManager  ??= timeManager;
     }
 
     private void WirePlayerComponents(Player p, Weapon sceneWeapon)
     {
-        // Wire movement component
+        // Wire movement: inject InputManager + MovementConfig
         var mover = p.GetComponent<PlayerMover2D>();
         if (mover != null)
         {
@@ -253,7 +250,7 @@ public class GameManager : MonoBehaviour
             mover.movementConfig ??= movementConfig;
         }
 
-        // Wire attack controller
+        // Wire attack controller: inject managers + configs
         var pac = p.GetComponent<PlayerAttackController>();
         if (pac != null)
         {
@@ -262,7 +259,7 @@ public class GameManager : MonoBehaviour
             pac.combatConfig ??= combatConfig;
             pac.beatConfig   ??= beatConfig;
             
-            // Auto-assign weapon if missing
+            // CRITICAL: Auto-assign weapon if missing (prevents null access)
             pac.weapon ??= sceneWeapon;
             if (pac.weapon != null)
                 DebugHelper.LogManager($"[GameManager] Auto-assigned weapon {pac.weapon.name} to PlayerAttackController");
@@ -274,7 +271,7 @@ public class GameManager : MonoBehaviour
         if (playerWeapon != null)
         {
             playerWeapon.combatConfig ??= combatConfig;
-            playerWeapon.SetOwner(p);
+            playerWeapon.SetOwner(p); // Weapon needs owner for damage events
             DebugHelper.LogManager($"[GameManager] Set {p.name} as owner of {playerWeapon.name}");
         }
     }
@@ -297,12 +294,16 @@ public class GameManager : MonoBehaviour
         DebugHelper.LogManager("GameManager: Player unregistered.");
     }
 
+    /// <summary>
+    /// State transition: Gameplay state triggers StartRuntime() on all managers
+    /// </summary>
     public void ChangeState(GameState next)
     {
         DebugHelper.LogManager($"Game state changed: {State} → {next}");
         State = next;
         if (State == GameState.Gameplay)
         {
+            // CRITICAL: Gameplay entry starts manager runtime loops
             DebugHelper.LogManager("Starting manager runtimes for gameplay...");
             inputManager?.StartRuntime();
             timeManager?.StartRuntime();

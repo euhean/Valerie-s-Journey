@@ -8,6 +8,7 @@ using UnityEngine;
 public class Enemy : Entity
 {
     private static WaitForSeconds _waitForSeconds0_25 = new(0.25f);
+    private static WaitForSeconds _waitForSeconds1_0 = new(1.0f);
     
     #region Inspector: Visuals
     [Header("Enemy Visual Settings")]
@@ -26,22 +27,16 @@ public class Enemy : Entity
     public float attackCooldown = 1.0f;
     #endregion
 
-    #region Runtime State
     private Coroutine patrolCoroutine;
     private float lastAttackTime = -999f;
-    protected override bool IsStaticEntity() => true;
-    #endregion
 
     #region Unity Lifecycle
     protected override void Awake()
-    {
-        // Set enemy-specific max health before base.Awake() initializes Health
-        maxHealth = GameConstants.ENEMY_MAX_HEALTH;
-        
+    {  
         base.Awake();
         gameObject.tag = "Enemy";
         UpdateVisuals();
-        SetDutyState(true); // Start enemies on patrol duty
+        SetDutyState(DutyState.OnDuty); // Start enemies on patrol duty
     }
 
     protected override void Start()
@@ -66,12 +61,12 @@ public class Enemy : Entity
     #region Combat / Damage
     public override void TakeDamage(float amount)
     {
-        if (currentState == EntityState.DEAD) return;
+        if (currentState == EntityState.Dead) return;
 
         base.TakeDamage(amount);
 
         bool isStrongAttack = amount >= GameConstants.STRONG_DAMAGE;
-        if (currentState != EntityState.DEAD)
+        if (currentState != EntityState.Dead)
         {
             if (isStrongAttack)
                 AnimationHelper.ShowStrongHitShake(transform, SpriteRenderer, hitFlashColor, hitFlashDuration, this);
@@ -79,29 +74,17 @@ public class Enemy : Entity
                 AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration, this);
         }
     }
-
-    protected override void OnStateChanged(EntityState from, EntityState to)
-    {
-        base.OnStateChanged(from, to);
-        UpdateVisuals();
-        if (to == EntityState.DEAD) ShowDeathLabel();
-    }
     #endregion
 
     #region Duty / Patrol Toggle
-    protected override void OnDutyStateChanged(bool fromDuty, bool toDuty)
+    protected override void OnStateChanged(EntityState from, EntityState to)
     {
-        base.OnDutyStateChanged(fromDuty, toDuty);
-
-        if (toDuty && currentState == EntityState.ALIVE)
-        {
-            StartPatrol();
-            DebugHelper.LogState(() => $"{gameObject.name} is now on patrol duty");
-        }
-        else
+        UpdateVisuals();
+        if (currentState == EntityState.Dead)
         {
             StopPatrol();
             DebugHelper.LogState(() => $"{gameObject.name} is now off duty (static)");
+            ShowDeathLabel();
         }
     }
     #endregion
@@ -110,7 +93,7 @@ public class Enemy : Entity
     private void UpdateVisuals()
     {
         if (SpriteRenderer == null) return;
-        SpriteRenderer.color = (currentState == EntityState.ALIVE) ? aliveColor : deadColor;
+        SpriteRenderer.color = (currentState == EntityState.Alive) ? aliveColor : deadColor;
     }
 
     private void ShowDeathLabel()
@@ -136,15 +119,28 @@ public class Enemy : Entity
 
     private IEnumerator PatrolRoutine()
     {
-        if (Rb2D == null) yield break;
+        if (Rigidbody == null) yield break;
 
-        while (onDuty && currentState == EntityState.ALIVE)
+        while (dutyState == DutyState.OnDuty && currentState == EntityState.Alive)
         {
-            if (playerTarget == null)
+            // Check if target is missing or dead
+            if (playerTarget == null || !playerTarget.IsAlive)
             {
-                playerTarget = GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
-                yield return _waitForSeconds0_25;
-                continue;
+                // Try to refresh target from GameManager
+                playerTarget = GameManager.Instance?.MainPlayer;
+                
+                // If still null or dead, try search
+                if (playerTarget == null || !playerTarget.IsAlive)
+                {
+                    playerTarget = FindFirstObjectByType<Player>();
+                }
+
+                // If still invalid, wait longer to avoid performance spam
+                if (playerTarget == null || !playerTarget.IsAlive)
+                {
+                    yield return _waitForSeconds1_0;
+                    continue;
+                }
             }
 
             Vector2 toTarget = playerTarget.transform.position - transform.position;
@@ -153,8 +149,8 @@ public class Enemy : Entity
             if (distance > attackRange)
             {
                 Vector2 dir = toTarget.normalized;
-                Vector2 next = (Vector2)Rb2D.position + dir * (patrolSpeed * Time.deltaTime);
-                Rb2D.MovePosition(next);
+                Vector2 next = Rigidbody.position + dir * (patrolSpeed * Time.deltaTime);
+                Rigidbody.MovePosition(next);
             }
             else
             {

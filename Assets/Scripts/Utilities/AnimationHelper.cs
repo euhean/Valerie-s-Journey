@@ -11,6 +11,29 @@ public class AnimationHelper : MonoBehaviour
 {
     public static AnimationHelper Instance { get; private set; }
 
+    // Pooling
+    private System.Collections.Generic.List<InstantTextFeedback> textPool = new System.Collections.Generic.List<InstantTextFeedback>();
+
+    private InstantTextFeedback GetFromPool()
+    {
+        textPool.RemoveAll(item => item == null);
+        foreach (var item in textPool)
+        {
+            if (!item.gameObject.activeSelf)
+            {
+                item.gameObject.SetActive(true);
+                return item;
+            }
+        }
+        
+        GameObject feedbackObj = new GameObject("Feedback_Pooled");
+        feedbackObj.transform.SetParent(transform);
+        var feedback = feedbackObj.AddComponent<InstantTextFeedback>();
+        feedback.returnToPool = true;
+        textPool.Add(feedback);
+        return feedback;
+    }
+
     #region Unity lifecycle
     private void Awake()
     {
@@ -33,10 +56,19 @@ public class AnimationHelper : MonoBehaviour
     #region Static API (convenience wrappers)
     public static void ShowText(Vector3 worldPos, string text, Color color, float duration = GameConstants.TEXT_DURATION)
     {
-        GameObject feedbackObj = new GameObject($"Feedback_{text}");
-        feedbackObj.transform.position = worldPos + Vector3.up * GameConstants.TEXT_OFFSET_Y;
-        var feedback = feedbackObj.AddComponent<InstantTextFeedback>();
-        feedback.Initialize(text, color, duration);
+        if (Instance != null)
+        {
+            var feedback = Instance.GetFromPool();
+            feedback.transform.position = worldPos + Vector3.up * GameConstants.TEXT_OFFSET_Y;
+            feedback.Initialize(text, color, duration);
+        }
+        else
+        {
+            GameObject feedbackObj = new GameObject($"Feedback_{text}");
+            feedbackObj.transform.position = worldPos + Vector3.up * GameConstants.TEXT_OFFSET_Y;
+            var feedback = feedbackObj.AddComponent<InstantTextFeedback>();
+            feedback.Initialize(text, color, duration);
+        }
     }
 
     public static void ShowDeath(Vector3 worldPos) => ShowText(worldPos, "DEAD", Color.red);
@@ -154,6 +186,7 @@ public class AnimationHelper : MonoBehaviour
     #region InstantTextFeedback nested class
     public class InstantTextFeedback : MonoBehaviour
     {
+        public bool returnToPool = false;
         private string displayText;
         private Color textColor;
         private float timer;
@@ -170,7 +203,11 @@ public class AnimationHelper : MonoBehaviour
         private void Update()
         {
             timer += Time.deltaTime;
-            if (timer >= duration) Destroy(gameObject);
+            if (timer >= duration)
+            {
+                if (returnToPool) gameObject.SetActive(false);
+                else Destroy(gameObject);
+            }
         }
 
         private void OnGUI()

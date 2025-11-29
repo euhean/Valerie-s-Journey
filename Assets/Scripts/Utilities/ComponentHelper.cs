@@ -124,17 +124,21 @@ public static class ComponentHelper
     /// </summary>
     public static void AutoConfigureEntity(Entity entity, bool isStaticEntity = false)
     {
+        var Rigidbody = entity.GetComponent<Rigidbody2D>();
+        var BoxCollider = entity.GetComponent<BoxCollider2D>();
+        var SpriteRenderer = entity.GetComponent<SpriteRenderer>();
+        
         if (entity == null)
         {
             DebugHelper.LogWarning("ComponentHelper: Cannot configure - entity is null");
             return;
         }
 
-        if (entity.Rb2D != null)
-            ConfigureEntityRigidbody(entity.Rb2D, isStaticEntity);
+        if (Rigidbody != null)
+            ConfigureEntityRigidbody(Rigidbody, isStaticEntity);
 
-        if (entity.SpriteRenderer != null && entity.BoxCollider != null)
-            AutoConfigureColliderToSprite(entity.SpriteRenderer, entity.BoxCollider);
+        if (SpriteRenderer != null && BoxCollider != null)
+            AutoConfigureColliderToSprite(SpriteRenderer, BoxCollider);
 
         if (DebugHelper.StateLogsEnabled)
             DebugHelper.LogState(() => $"Auto-configured all components for {entity.name}");

@@ -18,6 +18,7 @@ public class BeatVisualizer : MonoBehaviour
     private bool inputProcessedThisFrame = false;
     private Coroutine activeCoroutine; // Guarda la corrutina activa
 
+    [System.Obsolete]
     private void Start()
     {
         timeManager = FindObjectOfType<TimeManager>();
