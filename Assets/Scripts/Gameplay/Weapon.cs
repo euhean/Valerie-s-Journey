@@ -64,7 +64,11 @@ public class Weapon : MonoBehaviour
         // Auto-assign owner entity if not set
         if (ownerEntity == null)
         {
-            ownerEntity = FindFirstObjectByType<Player>();
+            // Try centralized reference first, then fallback to search
+            ownerEntity = GameManager.Instance?.MainPlayer;
+            if (ownerEntity == null)
+                ownerEntity = FindFirstObjectByType<Player>();
+
             if (ownerEntity != null)
                 DebugHelper.LogManager($"[Weapon] Auto-assigned owner: {ownerEntity.name}");
             else
@@ -104,9 +108,10 @@ public class Weapon : MonoBehaviour
     /// </summary>
     public void StartAttackWindow(bool isStrongAttack, float windowSeconds)
     {
-        // Can function without owner entity for basic attacks
-        bool canAttack = ownerEntity == null || 
-                        (ownerEntity.currentState == Entity.EntityState.ALIVE && ownerEntity.onDuty);
+        // Require owner entity to be alive and on duty to prevent null attacker in events
+        bool canAttack = ownerEntity != null && 
+                        ownerEntity.currentState == Entity.EntityState.ALIVE && 
+                        ownerEntity.onDuty;
         
         if (!canAttack)
             return;
@@ -182,6 +187,19 @@ public class Weapon : MonoBehaviour
     {
         SetVisualState(isOnDuty);
         if (weaponCollider) weaponCollider.enabled = isOnDuty;
+    }
+
+    /// <summary>
+    /// Immediately cancels any active attack window, resets state, and clears hit lists.
+    /// Call this when the attack is interrupted (e.g. player takes damage).
+    /// </summary>
+    public void AbortAttack()
+    {
+        CancelInvoke(nameof(ResetAttackState));
+        isAttacking = false;
+        hitSet.Clear();
+        hitList.Clear();
+        ResetAttackState(); // Ensure visuals/collider return to normal state
     }
 
     #endregion

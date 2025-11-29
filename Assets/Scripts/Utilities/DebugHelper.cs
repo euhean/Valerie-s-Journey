@@ -87,30 +87,18 @@ public static class DebugHelper
     [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
     public static void LogState(string message)
     {
-        EnsureConfig();
         if (StateLogsEnabled) UnityEngine.Debug.Log("[State] " + message);
     }
 
     [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
     public static void LogState(Func<string> provider)
     {
-        EnsureConfig();
         if (StateLogsEnabled) UnityEngine.Debug.Log("[State] " + provider());
     }
 
     #endregion
 
-    #region Always-on errors (not stripped)
-    public static void LogError(string message)
-    {
-        UnityEngine.Debug.LogError(message);
-    }
-
-    public static void LogException(Exception ex)
-    {
-        UnityEngine.Debug.LogException(ex);
-    }
-    
+    #region Config Properties
     /// <summary>Check if state logs are enabled (for conditional logging).</summary>
     public static bool StateLogsEnabled
     {
@@ -143,5 +131,17 @@ public static class DebugHelper
     
     // Alias for compatibility
     public static bool enableStateLogs => StateLogsEnabled;
+    #endregion
+
+    #region Always-on errors (not stripped)
+    public static void LogError(string message)
+    {
+        UnityEngine.Debug.LogError(message);
+    }
+
+    public static void LogException(Exception ex)
+    {
+        UnityEngine.Debug.LogException(ex);
+    }
     #endregion
 }

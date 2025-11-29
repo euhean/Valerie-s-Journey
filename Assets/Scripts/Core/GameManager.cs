@@ -177,8 +177,10 @@ public class GameManager : MonoBehaviour
             levelManager?.UnbindEvents();
             dialogManager?.UnbindEvents();
 
-            // Safely unsubscribe from EventBus
-            EventBus.Instance.ClearAll();
+            // Do NOT call EventBus.Instance.ClearAll() here.
+            // It wipes out subscriptions from non-manager entities (like Enemies/Player)
+            // which breaks the game if StopManagers is called during gameplay.
+            // Managers are responsible for unsubscribing themselves in UnbindEvents().
         }
         catch (Exception ex)
         {
@@ -217,12 +219,21 @@ public class GameManager : MonoBehaviour
     public void RegisterPlayer(Player p)
     {
         if (p == null) return;
+        
+        // Idempotency guard: if this player is already registered, skip
+        if (MainPlayer == p)
+        {
+            DebugHelper.LogManager($"[GameManager] Player {p.name} already registered. Skipping.");
+            return;
+        }
+
         MainPlayer = p;
         DebugHelper.LogManager(() => $"MainPlayer registered: {p.name}");
 
+        Weapon sceneWeapon = FindFirstObjectByType<Weapon>();
         WirePlayerManagers(p);
-        WirePlayerComponents(p);
-        WireWeaponSystem(p);
+        WirePlayerComponents(p, sceneWeapon);
+        WireWeaponSystem(p, sceneWeapon);
         PublishPlayerSpawnEvent(p);
     }
 
@@ -232,7 +243,7 @@ public class GameManager : MonoBehaviour
         p.timeManager  ??= timeManager;
     }
 
-    private void WirePlayerComponents(Player p)
+    private void WirePlayerComponents(Player p, Weapon sceneWeapon)
     {
         // Wire movement component
         var mover = p.GetComponent<PlayerMover2D>();
@@ -252,15 +263,14 @@ public class GameManager : MonoBehaviour
             pac.beatConfig   ??= beatConfig;
             
             // Auto-assign weapon if missing
-            pac.weapon ??= FindFirstObjectByType<Weapon>();
+            pac.weapon ??= sceneWeapon;
             if (pac.weapon != null)
                 DebugHelper.LogManager($"[GameManager] Auto-assigned weapon {pac.weapon.name} to PlayerAttackController");
         }
     }
 
-    private void WireWeaponSystem(Player p)
+    private void WireWeaponSystem(Player p, Weapon playerWeapon)
     {
-        Weapon playerWeapon = FindFirstObjectByType<Weapon>();
         if (playerWeapon != null)
         {
             playerWeapon.combatConfig ??= combatConfig;

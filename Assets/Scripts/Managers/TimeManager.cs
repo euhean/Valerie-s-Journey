@@ -18,6 +18,8 @@ public class TimeManager : BaseManager
     [Header("Audio")]
     [Tooltip("Optional AudioClip to play on each beat (metronome sound)")]
     public AudioClip beatSound;
+    [Range(0f, 1f)]
+    public float beatVolume = 0.5f;
     
     private AudioSource audioSource;
 
@@ -44,7 +46,7 @@ public class TimeManager : BaseManager
         {
             audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
-            audioSource.volume = 0.5f;
+            audioSource.volume = beatVolume;
         }
         // BeatConfig might already be assigned by GameManager.AutoConfigureScene
         if (beatConfig == null)

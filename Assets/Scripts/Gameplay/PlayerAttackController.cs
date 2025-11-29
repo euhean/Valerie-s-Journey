@@ -186,6 +186,12 @@ public class PlayerAttackController : MonoBehaviour
         }
         isAimLocked = false;
         attackInProgress = false;
+
+        // Ensure weapon stops collecting hits immediately
+        if (weapon != null)
+        {
+            weapon.AbortAttack();
+        }
     }
 
     public void ResetCombo(string reason)

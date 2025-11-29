@@ -177,7 +177,7 @@ public class Enemy : Entity
         playerTarget.TakeDamage(attackDamage);
         DebugHelper.LogCombat($"{gameObject.name} hit {playerTarget.name} for {attackDamage} damage");
 
-        AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration);
+        AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration, this);
     }
     #endregion
 }

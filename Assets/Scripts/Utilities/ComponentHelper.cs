@@ -18,9 +18,19 @@ public static class ComponentHelper
     public static Weapon FindWeaponFallback(string debugContext = "")
     {
         // Strategy 1: Tag-based (fastest)
-        GameObject weaponObj = GameObject.FindGameObjectWithTag("Weapon");
-        if (weaponObj?.GetComponent<Weapon>() != null)
-            return weaponObj.GetComponent<Weapon>();
+        try
+        {
+            GameObject weaponObj = GameObject.FindGameObjectWithTag("Weapon");
+            if (weaponObj != null)
+            {
+                Weapon w = weaponObj.GetComponent<Weapon>();
+                if (w != null) return w;
+            }
+        }
+        catch (UnityException ex)
+        {
+            DebugHelper.LogWarning($"[{debugContext}] Tag 'Weapon' not defined: {ex.Message}. Falling back to scene search.");
+        }
 
         // Strategy 2: Scene-wide search
         Weapon weapon = Object.FindFirstObjectByType<Weapon>();

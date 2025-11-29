@@ -18,6 +18,12 @@ public class Player : Entity
     public Weapon playerWeapon;
     #endregion
 
+    #region Inspector: Visuals
+    [Header("Visual Settings")]
+    public Color aliveColor = Color.white;
+    public Color deadColor = Color.gray;
+    #endregion
+
     #region Cached Components
     private PlayerMover2D mover;
     private PlayerAttackController attackController;
@@ -46,8 +52,9 @@ public class Player : Entity
         // Give mover the inputManager so it can run in FixedUpdate
         if (mover != null) mover.inputManager = inputManager;
 
-        // Self-register as main player
-        GameManager.Instance?.RegisterPlayer(this);
+        // NOTE: Self-registration removed to avoid duplicate calls.
+        // LevelManager handles registration when spawning the player.
+        // If this player is placed in the scene manually, GameManager.AutoConfigureScene will find it.
 
         // Set duty state now that things are wired
         SetDutyState(true);
@@ -82,7 +89,9 @@ public class Player : Entity
         }
         
         SpriteRenderer.enabled = true;  // Make sure SpriteRenderer is enabled
-        SpriteRenderer.color = Color.white; // Player is always visible and white
+        
+        // Respect entity state for visuals
+        SpriteRenderer.color = (currentState == EntityState.ALIVE) ? aliveColor : deadColor;
         
         // Debug sprite state
         DebugHelper.LogState(() => $"[Player] Sprite: {(SpriteRenderer.sprite ? SpriteRenderer.sprite.name : "NULL")}, Color: {SpriteRenderer.color}, Enabled: {SpriteRenderer.enabled}");
@@ -128,9 +137,6 @@ public class Player : Entity
     {
         DebugHelper.LogState(() => $"{gameObject.name} died!");
         SetState(EntityState.DEAD);
-
-        // Update visuals for death state
-        UpdateVisuals();
 
         // Disable collider and stop physics immediately
         if (BoxCollider != null) BoxCollider.enabled = false;
