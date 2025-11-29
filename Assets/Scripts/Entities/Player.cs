@@ -1,167 +1,135 @@
 using UnityEngine;
 
 /// <summary>
-/// The player entity. Holds references to movement and attack components,
-/// wires managers (via GameManager) and ensures attacks reset on damage.
+/// Player entity. Integrates InputManager, TimeManager, and handles visual feedback.
+/// CRITICAL: Wired by GameManager during RegisterPlayer(). Death publishes PlayerDiedEvent.
 /// </summary>
-[RequireComponent(typeof(PlayerMover2D), typeof(PlayerAttackController))]
 public class Player : Entity
 {
-    #region Inspector: Manager Refs
-    [Header("Manager References")]
-    public InputManager inputManager;
-    public TimeManager timeManager;
+    #region Inspector: Visual Settings
+    [Header("Player Visuals")]
+    [SerializeField] private Color aliveColor = Color.white;
+    [SerializeField] private Color deadColor = new Color(0.5f, 0.5f, 0.5f);
     #endregion
 
-    #region Inspector: Components
-    [Header("Player Components")]
-    public Weapon playerWeapon;
+    #region Dependencies (injected by GameManager)
+    [HideInInspector] public InputManager inputManager;
+    [HideInInspector] public TimeManager timeManager;
     #endregion
 
-    #region Inspector: Visuals
-    [Header("Visual Settings")]
-    public Color aliveColor = Color.white;
-    public Color deadColor = Color.gray;
-    #endregion
-
-    #region Cached Components
+    #region Components (auto-discovered or assigned)
+    private Weapon weapon;
     private PlayerMover2D mover;
     private PlayerAttackController attackController;
     #endregion
 
-    #region Unity Lifecycle
+    #region Unity lifecycle
     protected override void Awake()
     {
         base.Awake();
+        // Component discovery with fallback
+        weapon = ComponentHelper.FindWeaponFallback("Player");
         mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
-
-        // Use centralized weapon fallback logic
-        playerWeapon ??= ComponentHelper.FindWeaponFallback("Player");
     }
 
     protected override void Start()
     {
-        // CRITICAL: Call base.Start() for proper collider configuration
-        base.Start();
-        
-        // Acquire managers from GameManager if not set in inspector
-        inputManager ??= GameManager.Instance?.inputManager;
-        timeManager  ??= GameManager.Instance?.timeManager;
+        base.Start(); // Auto-fit collider to sprite
 
-        // Give mover the inputManager so it can run in FixedUpdate
-        if (mover != null) mover.inputManager = inputManager;
-
-        // NOTE: Self-registration removed to avoid duplicate calls.
-        // LevelManager handles registration when spawning the player.
-        // If this player is placed in the scene manually, GameManager.AutoConfigureScene will find it.
-
-        // Set duty state now that things are wired
-        SetDutyState(true);
-
-        // Ensure sprite is visible
-        UpdateVisuals();
-
-        // Idempotent registration - handled automatically by PlayerAttackController in OnEnable
-        // attackController subscribes to inputManager and timeManager events in its OnEnable
-    }
-
-    private void OnEnable()
-    {
-        // Event subscription handled automatically by PlayerAttackController in OnEnable
-        // attackController subscribes to inputManager and timeManager events
-    }
-
-    private void OnDisable()
-    {
-        // Event unsubscription handled automatically by PlayerAttackController in OnDisable
-        // attackController unsubscribes from inputManager and timeManager events
-    }
-    #endregion
-
-    #region Visuals
-    private void UpdateVisuals()
-    {
-        if (SpriteRenderer == null) 
+        // CRITICAL: Wire managers into components (fallback if GameManager hasn't run yet)
+        if (inputManager == null || timeManager == null)
         {
-            DebugHelper.LogWarning("[Player] SpriteRenderer is null!");
-            return;
+            var gm = GameManager.Instance;
+            inputManager = gm?.inputManager;
+            timeManager = gm?.timeManager;
         }
-        
-        SpriteRenderer.enabled = true;  // Make sure SpriteRenderer is enabled
-        
-        // Respect entity state for visuals
-        SpriteRenderer.color = (currentState == EntityState.ALIVE) ? aliveColor : deadColor;
-        
-        // Debug sprite state
-        DebugHelper.LogState(() => $"[Player] Sprite: {(SpriteRenderer.sprite ? SpriteRenderer.sprite.name : "NULL")}, Color: {SpriteRenderer.color}, Enabled: {SpriteRenderer.enabled}");
-    }
-    #endregion
 
-    #region Duty / Aiming
-    protected override void OnDutyStateChanged(bool fromDuty, bool toDuty)
-    {
-        base.OnDutyStateChanged(fromDuty, toDuty);
-        playerWeapon?.SetOwnerDutyState(toDuty);
+        if (mover != null)
+            mover.inputManager = inputManager;
+
+        // Initialize duty state after wiring complete
+        SetDutyState(DutyState.OnDuty);
+        UpdateVisuals(); // Apply initial visual state
     }
 
     private void Update()
     {
-        // Update weapon aiming with right stick input
-        if (playerWeapon != null && inputManager != null && onDuty && currentState == EntityState.ALIVE)
+        // Weapon aiming: track cursor/stick direction when alive and on-duty
+        if (!IsAlive || !IsOnDuty) return;
+
+        if (weapon != null && inputManager != null)
         {
-            playerWeapon.UpdateAiming(inputManager.Aim);
+            Vector2 aimDir = inputManager.Aim;
+            if (aimDir.sqrMagnitude > 0.01f)
+                weapon.UpdateAiming(aimDir);
         }
     }
     #endregion
 
-    #region Damage Handling
+    #region Combat integration
     public override void TakeDamage(float amount)
     {
-        if (currentState == EntityState.DEAD) return;
+        if (!IsAlive) return;
 
         base.TakeDamage(amount);
 
-        // Show damage flash effect for better combat clarity
-        if (currentState != EntityState.DEAD)
-        {
-            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, GameConstants.HIT_FLASH_DURATION, this);
-        }
+        // Damage feedback: flash sprite and reset combo
+        if (IsAlive && SpriteRenderer != null)
+            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, 
+                                         GameConstants.PLAYER_DAMAGE_FLASH_DURATION, this);
 
-        // Reset combos and abort any ongoing strong-lock when hit
-        attackController?.ResetCombo("took damage");
-        attackController?.AbortAttack();
+        if (attackController != null)
+            attackController.ResetCombo("took damage");
     }
 
+    /// <summary>
+    /// CRITICAL: Death flow: disable physics, toggle duty, publish death event, update visuals.
+    /// </summary>
     protected override void Die()
     {
-        DebugHelper.LogState(() => $"{gameObject.name} died!");
-        SetState(EntityState.DEAD);
+        if (!IsAlive) return;
 
-        // Disable collider and stop physics immediately
+        DebugHelper.LogState(() => $"Player {gameObject.name} died");
+        base.Die();
+
+        // Disable interaction: turn off collider and physics
         if (BoxCollider != null) BoxCollider.enabled = false;
-        if (Rb2D != null)
+        if (Rigidbody != null)
         {
-            Rb2D.linearVelocity = Vector2.zero;
-            Rb2D.bodyType = RigidbodyType2D.Kinematic;
+            Rigidbody.linearVelocity = Vector2.zero;
+            Rigidbody.simulated = false;
         }
 
-        // Set player off duty to stop all interactions
-        SetDutyState(false);
+        SetDutyState(DutyState.OffDuty);
 
-        // Trigger death event instead of destroying the player
+        // Notify game systems of death
         EventBus.Instance?.Publish(new PlayerDiedEvent { player = this });
-    }
 
-    protected override void OnStateChanged(EntityState from, EntityState to)
-    {
-        base.OnStateChanged(from, to);
-        UpdateVisuals(); // Ensure sprite visibility is maintained
+        UpdateVisuals(); // Apply death visuals
     }
     #endregion
 
-    #region Public API
-    // Method for GameManager to control player duty state
-    public void SetPlayerDuty(bool isOnDuty) => SetDutyState(isOnDuty);
+    #region Visuals
+    /// <summary>
+    /// State change callback: refresh visuals on transitions
+    /// </summary>
+    protected override void OnStateChanged(EntityState from, EntityState to)
+    {
+        base.OnStateChanged(from, to);
+        UpdateVisuals();
+    }
+
+    /// <summary>
+    /// Enforces visual state: sprite visibility, color based on alive/dead state.
+    /// </summary>
+    private void UpdateVisuals()
+    {
+        if (SpriteRenderer == null) return;
+
+        // Dead = gray and semi-transparent, Alive = normal color
+        SpriteRenderer.color = IsAlive ? aliveColor : deadColor;
+        SpriteRenderer.enabled = true; // Keep visible even when dead (for feedback)
+    }
     #endregion
 }

@@ -494,3 +494,7 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Unity generated project files
+*.csproj
+*.sln

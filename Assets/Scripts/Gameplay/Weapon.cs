@@ -58,6 +58,7 @@ public class Weapon : MonoBehaviour
 
     private void Awake()
     {
+        gameObject.tag = "Weapon";
         weaponCollider = weaponCollider ? weaponCollider : GetComponent<BoxCollider2D>();
         weaponRenderer = weaponRenderer ? weaponRenderer : GetComponent<SpriteRenderer>();    
         
@@ -77,14 +78,6 @@ public class Weapon : MonoBehaviour
         
         Debug.Assert(weaponCollider && weaponRenderer, "Weapon requires BoxCollider2D + SpriteRenderer.");
         weaponCollider.isTrigger = true;
-
-        // Manual collider setup for weapon (independent GameObject)
-        if (weaponRenderer.sprite != null && weaponCollider != null)
-        {
-            Bounds spriteBounds = weaponRenderer.sprite.bounds;
-            weaponCollider.size = (Vector2)spriteBounds.size;
-            weaponCollider.offset = (Vector2)spriteBounds.center;
-        }
 
         // start hidden/off-duty — controlled by PlayerAttackController
         SetVisualState(false);
@@ -110,8 +103,8 @@ public class Weapon : MonoBehaviour
     {
         // Require owner entity to be alive and on duty to prevent null attacker in events
         bool canAttack = ownerEntity != null && 
-                        ownerEntity.currentState == Entity.EntityState.ALIVE && 
-                        ownerEntity.onDuty;
+                        ownerEntity.currentState == Entity.EntityState.Alive && 
+                        ownerEntity.dutyState == Entity.DutyState.OnDuty;
         
         if (!canAttack)
             return;
@@ -162,8 +155,8 @@ public class Weapon : MonoBehaviour
     public void UpdateAiming(Vector2 aimDirection)
     {
         if (ownerEntity == null ||
-            ownerEntity.currentState != Entity.EntityState.ALIVE ||
-            !ownerEntity.onDuty)
+            ownerEntity.currentState != Entity.EntityState.Alive ||
+            ownerEntity.dutyState != Entity.DutyState.OnDuty)
             return;
 
         float threshSq = GameConstants.WEAPON_AIM_THRESHOLD * GameConstants.WEAPON_AIM_THRESHOLD;
@@ -249,8 +242,8 @@ public class Weapon : MonoBehaviour
         isAttacking = false;
 
         bool show = ownerEntity != null &&
-                    ownerEntity.currentState == Entity.EntityState.ALIVE &&
-                    ownerEntity.onDuty;
+                    ownerEntity.currentState == Entity.EntityState.Alive &&
+                    ownerEntity.dutyState == Entity.DutyState.OnDuty;
 
         SetVisualState(show);
         if (weaponCollider) weaponCollider.enabled = show;

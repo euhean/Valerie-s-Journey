@@ -1,54 +1,57 @@
-using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// Base class for all living game objects. Provides health/damage system,
-/// entity states, and ensures required 2D components are present.
+/// Base class for Player, Enemy, and all living entities.
+/// CRITICAL: Manages health, death state, sprite rendering, and collider lifecycle.
+/// Uses duty states to enable/disable entity activity.
 /// </summary>
-[RequireComponent(typeof(Rigidbody2D), typeof(SpriteRenderer), typeof(BoxCollider2D))]
 public abstract class Entity : MonoBehaviour
 {
     #region Types
-    public enum EntityState { ALIVE, DEAD }
+    public enum EntityState { Alive, Dead }
+    public enum DutyState { OnDuty, OffDuty }
     #endregion
 
     #region Inspector
-    [Header("Entity Settings")]
-    [SerializeField] protected float maxHealth = GameConstants.DEFAULT_MAX_HEALTH;
-    public EntityState currentState = EntityState.ALIVE;
-    public bool onDuty = false;
-
-    [Header("Components")]
-    public Rigidbody2D Rb2D { get; private set; }
-    public SpriteRenderer SpriteRenderer { get; private set; }
-    public BoxCollider2D BoxCollider { get; private set; }
+    [Header("Base Entity Settings")]
+    [SerializeField] protected float maxHealth = GameConstants.ENEMY_MAX_HEALTH;
     #endregion
 
-    #region Properties
+    #region State
     public float MaxHealth => maxHealth;
     public float Health { get; protected set; }
-    public bool IsActiveAndOnDuty => currentState == EntityState.ALIVE && onDuty;
-    public bool CanTakeDamage    => currentState == EntityState.ALIVE;
+    public EntityState currentState = EntityState.Alive;
+    public DutyState dutyState = DutyState.OffDuty;
     #endregion
 
-    #region Unity Lifecycle
+    #region Components (cached on Awake)
+    protected SpriteRenderer SpriteRenderer { get; private set; }
+    protected BoxCollider2D BoxCollider { get; private set; }
+    protected Rigidbody2D Rigidbody { get; private set; }
+    #endregion
+
+    #region State queries
+    public bool IsAlive => currentState == EntityState.Alive;
+    public bool IsOnDuty => dutyState == DutyState.OnDuty;
+    #endregion
+
+    #region Unity lifecycle
     protected virtual void Awake()
     {
-        // Cache required components
-        Rb2D         = GetComponent<Rigidbody2D>();
+        // Cache component refs to avoid repeated GetComponent calls
         SpriteRenderer = GetComponent<SpriteRenderer>();
-        BoxCollider  = GetComponent<BoxCollider2D>();
+        BoxCollider = GetComponent<BoxCollider2D>();
+        Rigidbody = GetComponent<Rigidbody2D>();
 
-        // Initialize health
         Health = maxHealth;
-
-        // Auto-configure components to work together
-        ComponentHelper.AutoConfigureEntity(this, IsStaticEntity());
     }
 
+    /// <summary>
+    /// CRITICAL: Auto-fits collider to sprite bounds after inspector values load.
+    /// Called after Awake, ensuring sprite assignments are ready.
+    /// </summary>
     protected virtual void Start()
     {
-        // Reconfigure after Inspector values are guaranteed to be loaded
         if (SpriteRenderer != null && SpriteRenderer.sprite != null && BoxCollider != null)
         {
             ComponentHelper.AutoConfigureColliderToSprite(SpriteRenderer, BoxCollider);
@@ -56,73 +59,64 @@ public abstract class Entity : MonoBehaviour
     }
     #endregion
 
-    #region Configuration
+    #region Health & damage
     /// <summary>
-    /// Override in derived classes to specify if this entity should be static.
-    /// Static entities (like dummy enemies) use Kinematic rigidbodies.
+    /// Apply damage. Clamps health to [0, maxHealth] and triggers death at zero.
     /// </summary>
-    protected virtual bool IsStaticEntity() => false;
-    #endregion
-
-    #region Damage & Death
     public virtual void TakeDamage(float amount)
     {
-        if (!CanTakeDamage) return;
+        if (!IsAlive) return;
 
-        Health -= amount;
-        DebugHelper.LogCombat(() => $"{gameObject.name} took {amount} damage ({Health:F1}/{maxHealth:F1} HP)");
+        Health = Mathf.Max(0, Health - amount);
+        DebugHelper.LogState(() => $"{gameObject.name} took {amount} dmg, health: {Health}/{maxHealth}");
 
-        if (Health <= 0f) Die();
+        if (Health <= 0)
+            Die();
     }
 
+    public virtual void Heal(float amount)
+    {
+        if (!IsAlive) return;
+        Health = Mathf.Min(maxHealth, Health + amount);
+    }
+
+    /// <summary>
+    /// Death handler. Override in subclasses for custom death behavior.
+    /// Base implementation logs death and transitions to Dead state.
+    /// </summary>
     protected virtual void Die()
     {
+        if (!IsAlive) return;
         DebugHelper.LogState(() => $"{gameObject.name} died!");
-        SetState(EntityState.DEAD);
-
-        // Disable collider immediately to stop interactions
-        if (BoxCollider != null) BoxCollider.enabled = false;
-
-        // Stop physics
-        if (Rb2D != null)
-        {
-            Rb2D.linearVelocity = Vector2.zero;
-            Rb2D.bodyType = RigidbodyType2D.Kinematic;
-        }
-
-        // Start death sequence: play animation then destroy
-        StartCoroutine(DeathSequence());
-    }
-
-    private System.Collections.IEnumerator DeathSequence()
-    {
-        // TODO: Play death animation here
-        // yield return new WaitForSeconds(deathAnimationDuration);
-        
-        // For now, use text duration as placeholder for death animation timing
-        yield return new WaitForSeconds(GameConstants.TEXT_DURATION);
-
-        // Destroy the game object after animation completes
-        Destroy(gameObject);
+        dutyState = DutyState.OffDuty;
+        ChangeState(EntityState.Dead);
     }
     #endregion
 
-    #region State & Duty
-    public virtual void SetState(EntityState newState)
+    #region State management
+    /// <summary>
+    /// Duty state controls whether entity is active in gameplay.
+    /// OffDuty = paused/disabled, OnDuty = active.
+    /// </summary>
+    public virtual void SetDutyState(DutyState newState)
     {
-        var previous = currentState;
+        if (dutyState == newState) return;
+        DebugHelper.LogState(() => $"{gameObject.name} state changed from {dutyState} to {newState}");
+        dutyState = newState;
+    }
+
+    protected void ChangeState(EntityState newState)
+    {
+        if (currentState == newState) return;
+        var oldState = currentState;
         currentState = newState;
-        OnStateChanged(previous, newState);
+        DebugHelper.LogState(() => $"{gameObject.name} state changed from {oldState} to {newState}");
+        OnStateChanged(oldState, newState);
     }
 
-    public virtual void SetDutyState(bool isOnDuty)
+    protected virtual void OnStateChanged(EntityState from, EntityState to)
     {
-        bool previous = onDuty;
-        onDuty = isOnDuty;
-        OnDutyStateChanged(previous, isOnDuty);
+        // Override in subclasses for custom behavior on state changes
     }
-
-    protected virtual void OnStateChanged(EntityState from, EntityState to) { /* override in child */ }
-    protected virtual void OnDutyStateChanged(bool fromDuty, bool toDuty)   { /* override in child */ }
     #endregion
 }
