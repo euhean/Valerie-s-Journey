@@ -31,8 +31,14 @@ public class PlayerMover2D : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        weapon ??= GetComponentInChildren<Weapon>(true);
+
+        // Use centralized weapon fallback logic
+        weapon ??= ComponentHelper.FindWeaponFallback("PlayerMover2D");
+        
+        // Find attack controller on same GameObject
         attackController ??= GetComponent<PlayerAttackController>();
+        if (attackController == null)
+            DebugHelper.LogWarning("[PlayerMover2D] No PlayerAttackController found. Add one to this GameObject or assign it in Inspector.");
     }
 
     private void Start()
@@ -65,7 +71,15 @@ public class PlayerMover2D : MonoBehaviour
         if (velocity.sqrMagnitude < GameConstants.PLAYER_STOP_THRESHOLD * GameConstants.PLAYER_STOP_THRESHOLD)
             velocity = Vector2.zero;
 
-        rb.velocity = velocity;
+        // ----- COLLISION-AWARE MOVEMENT -----
+        // Use MovePosition instead of directly setting velocity to respect collisions
+        if (velocity.sqrMagnitude > 0.01f)
+        {
+            Vector2 newPosition = rb.position + velocity * Time.fixedDeltaTime;
+            rb.MovePosition(newPosition);
+        }
+        else
+            rb.linearVelocity = Vector2.zero; 
 
         // ----- AIM FORWARDING -----
         // Skip aim updates if strong attack is locking aim

@@ -59,17 +59,30 @@ public class Weapon : MonoBehaviour
     private void Awake()
     {
         weaponCollider = weaponCollider ? weaponCollider : GetComponent<BoxCollider2D>();
-        weaponRenderer = weaponRenderer ? weaponRenderer : GetComponent<SpriteRenderer>();
-        ownerEntity    = GetComponentInParent<Entity>();
-
+        weaponRenderer = weaponRenderer ? weaponRenderer : GetComponent<SpriteRenderer>();    
+        
+        // Auto-assign owner entity if not set
+        if (ownerEntity == null)
+        {
+            ownerEntity = FindFirstObjectByType<Player>();
+            if (ownerEntity != null)
+                DebugHelper.LogManager($"[Weapon] Auto-assigned owner: {ownerEntity.name}");
+            else
+                DebugHelper.LogWarning("[Weapon] No owner Entity found. Use weapon.SetOwner() or assign a Player to the scene.");
+        }
+        
         Debug.Assert(weaponCollider && weaponRenderer, "Weapon requires BoxCollider2D + SpriteRenderer.");
         weaponCollider.isTrigger = true;
 
-        // Auto-size collider to sprite on boot
-        if (weaponRenderer.sprite != null)
-            ComponentHelper.AutoConfigureColliderToSprite(weaponRenderer, weaponCollider);
+        // Manual collider setup for weapon (independent GameObject)
+        if (weaponRenderer.sprite != null && weaponCollider != null)
+        {
+            Bounds spriteBounds = weaponRenderer.sprite.bounds;
+            weaponCollider.size = (Vector2)spriteBounds.size;
+            weaponCollider.offset = (Vector2)spriteBounds.center;
+        }
 
-        // start hidden/off-duty — Player enables in Start()
+        // start hidden/off-duty — controlled by PlayerAttackController
         SetVisualState(false);
         if (weaponCollider) weaponCollider.enabled = false;
     }
@@ -79,13 +92,23 @@ public class Weapon : MonoBehaviour
     #region Public API (called by PlayerAttackController)
 
     /// <summary>
+    /// Sets the owner entity for this weapon. Call this after instantiating the weapon.
+    /// </summary>
+    public void SetOwner(Entity owner)
+    {
+        ownerEntity = owner;
+    }
+
+    /// <summary>
     /// Opens a timed attack window. During the window, overlapping entities are damaged once.
     /// </summary>
     public void StartAttackWindow(bool isStrongAttack, float windowSeconds)
     {
-        if (ownerEntity == null ||
-            ownerEntity.currentState != Entity.EntityState.ALIVE ||
-            !ownerEntity.onDuty)
+        // Can function without owner entity for basic attacks
+        bool canAttack = ownerEntity == null || 
+                        (ownerEntity.currentState == Entity.EntityState.ALIVE && ownerEntity.onDuty);
+        
+        if (!canAttack)
             return;
 
         // Begin window

@@ -14,7 +14,7 @@ public abstract class Entity : MonoBehaviour
 
     #region Inspector
     [Header("Entity Settings")]
-    public float maxHealth = GameConstants.DEFAULT_MAX_HEALTH;
+    [SerializeField] protected float maxHealth = GameConstants.DEFAULT_MAX_HEALTH;
     public EntityState currentState = EntityState.ALIVE;
     public bool onDuty = false;
 
@@ -25,6 +25,7 @@ public abstract class Entity : MonoBehaviour
     #endregion
 
     #region Properties
+    public float MaxHealth => maxHealth;
     public float Health { get; protected set; }
     public bool IsActiveAndOnDuty => currentState == EntityState.ALIVE && onDuty;
     public bool CanTakeDamage    => currentState == EntityState.ALIVE;
@@ -43,6 +44,15 @@ public abstract class Entity : MonoBehaviour
 
         // Auto-configure components to work together
         ComponentHelper.AutoConfigureEntity(this, IsStaticEntity());
+    }
+
+    protected virtual void Start()
+    {
+        // Reconfigure after Inspector values are guaranteed to be loaded
+        if (SpriteRenderer != null && SpriteRenderer.sprite != null && BoxCollider != null)
+        {
+            ComponentHelper.AutoConfigureColliderToSprite(SpriteRenderer, BoxCollider);
+        }
     }
     #endregion
 
@@ -67,7 +77,7 @@ public abstract class Entity : MonoBehaviour
 
     protected virtual void Die()
     {
-        DebugHelper.LogState($"{gameObject.name} died!");
+        DebugHelper.LogState(() => $"{gameObject.name} died!");
         SetState(EntityState.DEAD);
 
         // Disable collider immediately to stop interactions

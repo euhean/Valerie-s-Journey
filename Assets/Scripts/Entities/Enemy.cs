@@ -9,11 +9,6 @@ public class Enemy : Entity
 {
     private static WaitForSeconds _waitForSeconds0_25 = new(0.25f);
     
-    #region Inspector: Health Settings
-    [Header("Enemy Health Settings")]
-    public new float maxHealth = GameConstants.ENEMY_MAX_HEALTH; // Balanced for perfect combo (40 damage)
-    #endregion
-    
     #region Inspector: Visuals
     [Header("Enemy Visual Settings")]
     public Color aliveColor = GameConstants.ENEMY_ALIVE_COLOR;
@@ -40,14 +35,19 @@ public class Enemy : Entity
     #region Unity Lifecycle
     protected override void Awake()
     {
+        maxHealth = GameConstants.ENEMY_MAX_HEALTH;
+        
         base.Awake();
         gameObject.tag = "Enemy";
         UpdateVisuals();
         SetDutyState(true); // Start enemies on patrol duty
     }
 
-    private void Start()
+    protected override void Start()
     {
+        // CRITICAL: Call base.Start() for proper collider configuration
+        base.Start();
+        
         playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
         EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
     }
@@ -73,9 +73,9 @@ public class Enemy : Entity
         if (currentState != EntityState.DEAD)
         {
             if (isStrongAttack)
-                AnimationHelper.ShowStrongHitShake(transform, SpriteRenderer, hitFlashColor, hitFlashDuration);
+                AnimationHelper.ShowStrongHitShake(transform, SpriteRenderer, hitFlashColor, hitFlashDuration, this);
             else
-                AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration);
+                AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration, this);
         }
     }
 
@@ -95,12 +95,12 @@ public class Enemy : Entity
         if (toDuty && currentState == EntityState.ALIVE)
         {
             StartPatrol();
-            DebugHelper.LogState($"{gameObject.name} is now on patrol duty");
+            DebugHelper.LogState(() => $"{gameObject.name} is now on patrol duty");
         }
         else
         {
             StopPatrol();
-            DebugHelper.LogState($"{gameObject.name} is now off duty (static)");
+            DebugHelper.LogState(() => $"{gameObject.name} is now off duty (static)");
         }
     }
     #endregion

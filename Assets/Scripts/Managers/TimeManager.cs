@@ -15,6 +15,12 @@ public class TimeManager : BaseManager
     [Header("Beat Config (assigned by GameManager or in Inspector)")]
     public BeatConfig beatConfig; // assigned by GameManager.AutoConfigureScene when available
 
+    [Header("Audio")]
+    [Tooltip("Optional AudioClip to play on each beat (metronome sound)")]
+    public AudioClip beatSound;
+    
+    private AudioSource audioSource;
+
     /// <summary>Raised on each beat; payload = beat index (starting at 0).</summary>
     public event Action<int> OnBeat;
 
@@ -32,6 +38,16 @@ public class TimeManager : BaseManager
     public override void Configure(GameManager gm)
     {
         base.Configure(gm);
+        
+        // Set up AudioSource for beat sounds
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.volume = 0.5f;
+        }
+
         // BeatConfig might already be assigned by GameManager.AutoConfigureScene
         if (beatConfig == null)
         {
@@ -55,8 +71,8 @@ public class TimeManager : BaseManager
     {
         if (runtimeStarted) return;
         runtimeStarted = true;
-        // Start the metronome loop
-        metronomeCoroutine = CoroutineRunner.Instance.StartCoroutine(MetronomeLoop());
+        // Start the metronome loop using this MonoBehaviour
+        metronomeCoroutine = StartCoroutine(MetronomeLoop());
         DebugHelper.LogManager("[TimeManager] Runtime started.");
     }
 
@@ -66,7 +82,7 @@ public class TimeManager : BaseManager
         runtimeStarted = false;
         if (metronomeCoroutine != null)
         {
-            CoroutineRunner.Instance.StopCoroutine(metronomeCoroutine);
+            StopCoroutine(metronomeCoroutine);
             metronomeCoroutine = null;
         }
         running = false;
@@ -99,6 +115,11 @@ public class TimeManager : BaseManager
             {
                 // Fire beat
                 lastBeatDSP = nextBeatDSP;
+                
+                // Play beat sound if available
+                if (beatSound != null && audioSource != null)
+                    audioSource.PlayOneShot(beatSound);
+                
                 try
                 {
                     OnBeat?.Invoke(beatIndex);
@@ -150,24 +171,4 @@ public class TimeManager : BaseManager
     /// </summary>
     public double LastBeatDSP => lastBeatDSP;
     #endregion
-}
-
-/// <summary>
-/// Utility singleton runner for coroutines inside non-Mono classes or to provide a centralized runner.
-/// If you already have a coroutine runner in your project, remove this and use that instead.
-/// </summary>
-public class CoroutineRunner : MonoBehaviour
-{
-    private static CoroutineRunner _instance;
-    public static CoroutineRunner Instance
-    {
-        get
-        {
-            if (_instance != null) return _instance;
-            var go = new GameObject("__CoroutineRunner");
-            DontDestroyOnLoad(go);
-            _instance = go.AddComponent<CoroutineRunner>();
-            return _instance;
-        }
-    }
 }

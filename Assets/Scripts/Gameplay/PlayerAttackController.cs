@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Handles attack timing, combo rules, aim lock during strong, and emits AttackResolved.
-/// Minimal event pipeline: Weapon will emit DamageApplied per hit in the next step.
+/// Handles attack timing, combo rules, aim lock during strong, and communicates with weapon.
+/// This is a controller script that goes on the Player - it finds and controls a separate Weapon object.
 /// </summary>
-[RequireComponent(typeof(Weapon))]
 public class PlayerAttackController : MonoBehaviour
 {
     #region Inspector
@@ -18,13 +17,15 @@ public class PlayerAttackController : MonoBehaviour
     public CombatConfig combatConfig; // basicDamage, strongDamage, comboStreak, attackWindow
     public BeatConfig beatConfig;     // onBeat window, reset policies
 
+    [Header("Weapon Reference (found automatically if null)")]
+    public Weapon weapon; // The weapon this controller commands
+
     [Header("Cooldowns")]
     [Tooltip("Seconds between button presses being accepted (prevents button mashing spam)")]
     public float attackCooldown = 0.15f;
     #endregion
 
     #region Private State
-    private Weapon weapon;
     private bool isAimLocked = false;
     private bool attackInProgress = false;
 
@@ -37,9 +38,12 @@ public class PlayerAttackController : MonoBehaviour
     #region Unity Lifecycle
     private void Awake()
     {
-        weapon = GetComponent<Weapon>();
-        if (combatConfig == null) DebugHelper.LogWarning("[PAC] CombatConfig not assigned.");
-        if (beatConfig == null) DebugHelper.LogWarning("[PAC] BeatConfig not assigned.");
+        // Use centralized weapon fallback logic
+        weapon ??= ComponentHelper.FindWeaponFallback("PAC");
+        
+        // Configs are optional - GameConstants provide fallback values
+        if (combatConfig == null) DebugHelper.LogManager("[PAC] Using GameConstants for combat values (CombatConfig not assigned).");
+        if (beatConfig == null) DebugHelper.LogManager("[PAC] Using GameConstants for beat values (BeatConfig not assigned).");
     }
 
     private void Start()
@@ -127,14 +131,16 @@ public class PlayerAttackController : MonoBehaviour
         }
 
         // Tell weapon to open its active window; it will collect hits.
-        // NOTE: Weapon will be replaced next to provide StartAttackWindow + ConsumeHitTargets.
-        weapon.StartAttackWindow(isStrong, windowSec);
+        if (weapon != null)
+        {
+            weapon.StartAttackWindow(isStrong, windowSec);
+        }
 
         // Wait for the window to finish
         yield return new WaitForSeconds(windowSec);
 
         // Consume hit targets from the weapon for this window
-        IReadOnlyList<Entity> hits = weapon.ConsumeHitTargets();
+        IReadOnlyList<Entity> hits = weapon?.ConsumeHitTargets();
 
         bool success = hits != null && hits.Count > 0;
 
@@ -165,10 +171,22 @@ public class PlayerAttackController : MonoBehaviour
     #region Public API (for movement/aim systems)
     /// <summary>Call from your aiming code to know if aim updates should be ignored.</summary>
     public bool IsAimLocked() => isAimLocked;
+    
+    /// <summary>Public method to abort attack (unlock aim immediately).</summary>
+    public void AbortAttack()
+    {
+        if (strongAimLockCoro != null)
+        {
+            StopCoroutine(strongAimLockCoro);
+            strongAimLockCoro = null;
+        }
+        isAimLocked = false;
+        attackInProgress = false;
+    }
     #endregion
 
     #region Helpers
-    private void ResetCombo(string reason)
+    public void ResetCombo(string reason)
     {
         if (onBeatStreak != 0) DebugHelper.LogCombat($"[PAC] Combo reset ({reason}).");
         onBeatStreak = 0;

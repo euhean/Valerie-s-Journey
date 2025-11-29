@@ -55,17 +55,6 @@ public class HitboxGizmos : MonoBehaviour
                 DrawCollider2DWire(col);
             }
         }
-
-        // Draw 3D colliders (wire bounds)
-        if (cached3D != null)
-        {
-            foreach (var col in cached3D)
-            {
-                if (col == null) continue;
-                Gizmos.color = wireColor;
-                Gizmos.DrawWireCube(col.bounds.center, col.bounds.size);
-            }
-        }
     }
 
     private void DrawCollider2DWire(Collider2D col)

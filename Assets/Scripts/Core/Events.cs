@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
 /// <summary>
 /// Basic spawn events used by LevelManager (and future systems).
 /// </summary>

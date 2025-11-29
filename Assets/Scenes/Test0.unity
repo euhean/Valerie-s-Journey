@@ -417,11 +417,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bpm: 90
-  onBeatWindowSec: 0.2
-  startDelaySec: 0.4
-  enableMetronome: 1
-  metronomeClip: {fileID: 8300000, guid: eb91bb56d05b4cd47b165f0071b80377, type: 3}
-  metronomeVolume: 0.5
+  beatConfig: {fileID: 11400000, guid: c44835cf57230ac4e85b5319427e65f5, type: 2}
+  beatSound: {fileID: 8300000, guid: eb91bb56d05b4cd47b165f0071b80377, type: 3}
 --- !u!4 &90681411
 Transform:
   m_ObjectHideFlags: 0
@@ -522,6 +519,10 @@ MonoBehaviour:
   moveAction: {fileID: -1680190386980627800, guid: 3590b91b4603b465dbb4216d601bff33, type: 3}
   aimAction: {fileID: -5630151704836100654, guid: 3590b91b4603b465dbb4216d601bff33, type: 3}
   basicAction: {fileID: 1120369429361536294, guid: 3590b91b4603b465dbb4216d601bff33, type: 3}
+  navigateAction: {fileID: 0}
+  submitAction: {fileID: 0}
+  cancelAction: {fileID: 0}
+  worldCamera: {fileID: 737612288}
 --- !u!4 &396868539
 Transform:
   m_ObjectHideFlags: 0
@@ -611,7 +612,7 @@ BoxCollider2D:
   m_CallbackLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  m_IsTrigger: 1
+  m_IsTrigger: 0
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
@@ -1409,6 +1410,7 @@ GameObject:
   - component: {fileID: 549759595}
   - component: {fileID: 549759594}
   - component: {fileID: 549759593}
+  - component: {fileID: 549759600}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1529,10 +1531,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 34d6b7f8f14e21843b7b52beac8b10a7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attackCooldown: 0.15
-  strongLocksAiming: 0
-  strongLockDuration: 0.25
-  comboDecayBeats: 0
+  inputManager: {fileID: 396868538}
+  timeManager: {fileID: 90681410}
+  combatConfig: {fileID: 11400000, guid: 44291da525eeab34cade481620aa0562, type: 2}
+  beatConfig: {fileID: 11400000, guid: c44835cf57230ac4e85b5319427e65f5, type: 2}
+  weapon: {fileID: 1893429802}
+  attackCooldown: 0.3
 --- !u!114 &549759596
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1546,6 +1550,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   inputManager: {fileID: 396868538}
+  movementConfig: {fileID: 11400000, guid: 25ffe2423cf85634c9813456b8cd9aac, type: 2}
+  weapon: {fileID: 1893429802}
+  attackController: {fileID: 549759595}
 --- !u!50 &549759597
 Rigidbody2D:
   serializedVersion: 5
@@ -1559,8 +1566,8 @@ Rigidbody2D:
   m_UseFullKinematicContacts: 0
   m_UseAutoMass: 0
   m_Mass: 1
-  m_LinearDamping: 5
-  m_AngularDamping: 5
+  m_LinearDamping: 0.5
+  m_AngularDamping: 1.5
   m_GravityScale: 0
   m_Material: {fileID: 0}
   m_IncludeLayers:
@@ -1571,8 +1578,8 @@ Rigidbody2D:
     m_Bits: 0
   m_Interpolate: 1
   m_SleepingMode: 1
-  m_CollisionDetection: 0
-  m_Constraints: 0
+  m_CollisionDetection: 1
+  m_Constraints: 4
 --- !u!114 &549759598
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1607,6 +1614,27 @@ Transform:
   - {fileID: 1893429801}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &549759600
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 549759592}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab6dfe6ae11763441b4383b912b3d6a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  combatConfig: {fileID: 0}
+  basicDamage: 5
+  strongDamage: 20
+  onDutyColor: {r: 1, g: 1, b: 1, a: 1}
+  offDutyColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  attackColor: {r: 1, g: 0, b: 0, a: 1}
+  weaponDistance: 0.6
+  weaponCollider: {fileID: 549759594}
+  weaponRenderer: {fileID: 549759593}
 --- !u!1 &549932357
 GameObject:
   m_ObjectHideFlags: 0
@@ -2450,7 +2478,7 @@ BoxCollider2D:
   m_CallbackLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  m_IsTrigger: 1
+  m_IsTrigger: 0
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
@@ -3572,8 +3600,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   inputManager: {fileID: 396868538}
   timeManager: {fileID: 90681410}
-  levelManager: {fileID: 0}
-  autoConfigureScene: 1
+  levelManager: {fileID: 132267277}
+  combatConfig: {fileID: 11400000, guid: 44291da525eeab34cade481620aa0562, type: 2}
+  beatConfig: {fileID: 11400000, guid: c44835cf57230ac4e85b5319427e65f5, type: 2}
+  movementConfig: {fileID: 11400000, guid: 25ffe2423cf85634c9813456b8cd9aac, type: 2}
 --- !u!4 &1330933738
 Transform:
   m_ObjectHideFlags: 0
@@ -5449,11 +5479,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ab6dfe6ae11763441b4383b912b3d6a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  combatConfig: {fileID: 0}
   basicDamage: 5
   strongDamage: 20
   onDutyColor: {r: 1, g: 1, b: 1, a: 1}
   offDutyColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   attackColor: {r: 1, g: 0, b: 0, a: 1}
+  weaponDistance: 0.8
   weaponCollider: {fileID: 1893429804}
   weaponRenderer: {fileID: 1893429803}
 --- !u!212 &1893429803

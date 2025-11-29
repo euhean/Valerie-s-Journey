@@ -66,6 +66,19 @@ public class LevelManager : BaseManager
         DebugHelper.LogManager($"LevelManager.Pause({isPaused})");
     }
 
+    public override void StopRuntime()
+    {
+        DebugHelper.LogManager("LevelManager.StopRuntime()");
+        isRunning = false;
+    }
+
+    public override void UnbindEvents()
+    {
+        DebugHelper.LogManager("LevelManager.UnbindEvents()");
+        EventBus.Instance?.Unsubscribe<GameplayEvent>(OnGameplayEvent);
+        EventBus.Instance?.Unsubscribe<PlayerDiedEvent>(OnPlayerDied);
+    }
+
     public override void Teardown()
     {
         DebugHelper.LogManager("LevelManager.Teardown()");

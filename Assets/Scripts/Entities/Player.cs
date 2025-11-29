@@ -30,12 +30,15 @@ public class Player : Entity
         mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
 
-        // Find weapon in children if not assigned
-        playerWeapon ??= GetComponentInChildren<Weapon>(true);
+        // Use centralized weapon fallback logic
+        playerWeapon ??= ComponentHelper.FindWeaponFallback("Player");
     }
 
-    private void Start()
+    protected override void Start()
     {
+        // CRITICAL: Call base.Start() for proper collider configuration
+        base.Start();
+        
         // Acquire managers from GameManager if not set in inspector
         inputManager ??= GameManager.Instance?.inputManager;
         timeManager  ??= GameManager.Instance?.timeManager;
@@ -49,20 +52,40 @@ public class Player : Entity
         // Set duty state now that things are wired
         SetDutyState(true);
 
-        // Idempotent registration
-        attackController?.Register(inputManager, timeManager);
+        // Ensure sprite is visible
+        UpdateVisuals();
+
+        // Idempotent registration - handled automatically by PlayerAttackController in OnEnable
+        // attackController subscribes to inputManager and timeManager events in its OnEnable
     }
 
     private void OnEnable()
     {
-        // Safe: will noop if already registered or managers missing
-        attackController?.Register(inputManager, timeManager);
+        // Event subscription handled automatically by PlayerAttackController in OnEnable
+        // attackController subscribes to inputManager and timeManager events
     }
 
     private void OnDisable()
     {
-        // Safe: only unsubscribes if it was subscribed to this input
-        attackController?.Unregister(inputManager);
+        // Event unsubscription handled automatically by PlayerAttackController in OnDisable
+        // attackController unsubscribes from inputManager and timeManager events
+    }
+    #endregion
+
+    #region Visuals
+    private void UpdateVisuals()
+    {
+        if (SpriteRenderer == null) 
+        {
+            DebugHelper.LogWarning("[Player] SpriteRenderer is null!");
+            return;
+        }
+        
+        SpriteRenderer.enabled = true;  // Make sure SpriteRenderer is enabled
+        SpriteRenderer.color = Color.white; // Player is always visible and white
+        
+        // Debug sprite state
+        DebugHelper.LogState(() => $"[Player] Sprite: {(SpriteRenderer.sprite ? SpriteRenderer.sprite.name : "NULL")}, Color: {SpriteRenderer.color}, Enabled: {SpriteRenderer.enabled}");
     }
     #endregion
 
@@ -93,18 +116,21 @@ public class Player : Entity
         // Show damage flash effect for better combat clarity
         if (currentState != EntityState.DEAD)
         {
-            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, GameConstants.HIT_FLASH_DURATION);
+            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, GameConstants.HIT_FLASH_DURATION, this);
         }
 
         // Reset combos and abort any ongoing strong-lock when hit
-        attackController?.ResetCombo();
+        attackController?.ResetCombo("took damage");
         attackController?.AbortAttack();
     }
 
     protected override void Die()
     {
-        DebugHelper.LogState($"{gameObject.name} died!");
+        DebugHelper.LogState(() => $"{gameObject.name} died!");
         SetState(EntityState.DEAD);
+
+        // Update visuals for death state
+        UpdateVisuals();
 
         // Disable collider and stop physics immediately
         if (BoxCollider != null) BoxCollider.enabled = false;
@@ -119,6 +145,12 @@ public class Player : Entity
 
         // Trigger death event instead of destroying the player
         EventBus.Instance?.Publish(new PlayerDiedEvent { player = this });
+    }
+
+    protected override void OnStateChanged(EntityState from, EntityState to)
+    {
+        base.OnStateChanged(from, to);
+        UpdateVisuals(); // Ensure sprite visibility is maintained
     }
     #endregion
 

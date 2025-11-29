@@ -88,7 +88,7 @@ public static class DebugHelper
     public static void LogState(Func<string> provider)
     {
         EnsureConfig();
-        if (_config == null || _config.enableStateLogs) UnityEngine.Debug.Log("[State] " + provider());
+        if (StateLogsEnabled) UnityEngine.Debug.Log("[State] " + provider());
     }
 
     #endregion
@@ -102,6 +102,16 @@ public static class DebugHelper
     public static void LogException(Exception ex)
     {
         UnityEngine.Debug.LogException(ex);
+    }
+    
+    /// <summary>Check if state logs are enabled (for conditional logging).</summary>
+    public static bool StateLogsEnabled
+    {
+        get
+        {
+            EnsureConfig();
+            return _config == null || _config.enableStateLogs;
+        }
     }
     #endregion
 }
