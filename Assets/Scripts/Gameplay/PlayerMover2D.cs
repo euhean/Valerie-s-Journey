@@ -13,9 +13,9 @@ public class PlayerMover2D : MonoBehaviour
     [Header("Configs (optional)")]
     public MovementConfig movementConfig; // if null, falls back to GameConstants
 
-    [Header("Components (set by Player)")]
-    [HideInInspector] public Weapon weapon;
-    [HideInInspector] public PlayerAttackController attackController;
+    [Header("Components")]
+    public Weapon weapon;                         // optional: found in children if null
+    public PlayerAttackController attackController; // optional: found on self if null
 
     private Rigidbody2D rb;
     private Vector2 velocity;
@@ -32,6 +32,14 @@ public class PlayerMover2D : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+
+        // Use centralized weapon fallback logic
+        weapon ??= ComponentHelper.FindWeaponFallback("PlayerMover2D");
+        
+        // Find attack controller on same GameObject
+        attackController ??= GetComponent<PlayerAttackController>();
+        if (attackController == null)
+            DebugHelper.LogWarning("[PlayerMover2D] No PlayerAttackController found. Add one to this GameObject or assign it in Inspector.");
     }
 
     private void Start()

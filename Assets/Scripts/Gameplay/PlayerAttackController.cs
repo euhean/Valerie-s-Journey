@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Handles attack timing, combo rules, aim lock during strong, and emits AttackResolved.
-/// Minimal event pipeline: Weapon will emit DamageApplied per hit in the next step.
+/// Handles attack timing, combo rules, aim lock during strong, and communicates with weapon.
+/// This is a controller script that goes on the Player - it finds and controls a separate Weapon object.
 /// </summary>
 public class PlayerAttackController : MonoBehaviour
 {
@@ -17,13 +17,15 @@ public class PlayerAttackController : MonoBehaviour
     public CombatConfig combatConfig; // basicDamage, strongDamage, comboStreak, attackWindow
     public BeatConfig beatConfig;     // onBeat window, reset policies
 
+    [Header("Weapon Reference (found automatically if null)")]
+    public Weapon weapon; // The weapon this controller commands
+
     [Header("Cooldowns")]
     [Tooltip("Seconds between button presses being accepted (prevents button mashing spam)")]
     public float attackCooldown = 0.15f;
     #endregion
 
     #region Private State
-    private Weapon weapon;
     private bool isAimLocked = false;
     private bool attackInProgress = false;
 
@@ -36,21 +38,22 @@ public class PlayerAttackController : MonoBehaviour
     #region Unity Lifecycle
     private void Awake()
     {
-        if (combatConfig == null) DebugHelper.LogWarning("[PAC] CombatConfig not assigned.");
-        if (beatConfig == null) DebugHelper.LogWarning("[PAC] BeatConfig not assigned.");
+        // Use centralized weapon fallback logic
+        weapon ??= ComponentHelper.FindWeaponFallback("PAC");
         
+        // Configs are optional - GameConstants provide fallback values
+        if (combatConfig == null) DebugHelper.LogManager("[PAC] Using GameConstants for combat values (CombatConfig not assigned).");
+        if (beatConfig == null) DebugHelper.LogManager("[PAC] Using GameConstants for beat values (BeatConfig not assigned).");
+    }
+
+    private void Start()
+    {
         // Acquire managers from GameManager if not set in inspector
-        // IMPORTANT: Must be in Awake (not Start) so they're available for OnEnable subscriptions
         inputManager ??= GameManager.Instance?.inputManager;
         timeManager  ??= GameManager.Instance?.timeManager;
         
-        // Log errors if managers are still null after acquisition
-        if (GameManager.Instance == null)
-            DebugHelper.LogError("[PAC] GameManager.Instance is null during Awake!");
-        if (inputManager == null) 
-            DebugHelper.LogError("[PAC] InputManager not found. Attack input will not work.");
-        if (timeManager == null)  
-            DebugHelper.LogError("[PAC] TimeManager not found. Beat timing will not work.");
+        if (inputManager == null) DebugHelper.LogError("[PAC] InputManager not found.");
+        if (timeManager == null)  DebugHelper.LogError("[PAC] TimeManager not found.");
     }
 
     private void OnEnable()
@@ -86,14 +89,7 @@ public class PlayerAttackController : MonoBehaviour
         if (pressDSP - lastPressDSP < attackCooldown) return; // basic anti-spam
         lastPressDSP = pressDSP;
 
-        // TimeManager is critical for beat detection - fail fast if missing
-        if (timeManager == null)
-        {
-            DebugHelper.LogWarning("[PAC] TimeManager is null - cannot process attack timing! All attacks will fail.");
-            return;
-        }
-
-        bool onBeat = timeManager.IsOnBeat(pressDSP);
+        bool onBeat = timeManager != null && timeManager.IsOnBeat(pressDSP);
 
         // Combo rules:
         // - Off-beat press: allowed, but resets streak immediately (never contributes to strong)
@@ -136,14 +132,16 @@ public class PlayerAttackController : MonoBehaviour
         }
 
         // Tell weapon to open its active window; it will collect hits.
-        // NOTE: Weapon will be replaced next to provide StartAttackWindow + ConsumeHitTargets.
-        weapon.StartAttackWindow(isStrong, windowSec);
+        if (weapon != null)
+        {
+            weapon.StartAttackWindow(isStrong, windowSec);
+        }
 
         // Wait for the window to finish
         yield return new WaitForSeconds(windowSec);
 
         // Consume hit targets from the weapon for this window
-        IReadOnlyList<Entity> hits = weapon.ConsumeHitTargets();
+        IReadOnlyList<Entity> hits = weapon?.ConsumeHitTargets();
 
         bool success = hits != null && hits.Count > 0;
 
@@ -174,32 +172,33 @@ public class PlayerAttackController : MonoBehaviour
     #region Public API (for movement/aim systems)
     /// <summary>Called by Player to set the weapon reference.</summary>
     public void SetWeapon(Weapon w) => weapon = w;
-    
+
     /// <summary>Call from your aiming code to know if aim updates should be ignored.</summary>
     public bool IsAimLocked() => isAimLocked;
+    
+    /// <summary>Public method to abort attack (unlock aim immediately).</summary>
+    public void AbortAttack()
+    {
+        if (strongAimLockCoro != null)
+        {
+            StopCoroutine(strongAimLockCoro);
+            strongAimLockCoro = null;
+        }
+        isAimLocked = false;
+        attackInProgress = false;
 
-    /// <summary>Resets the combo streak (called when player takes damage).</summary>
-    public void ResetCombo(string reason = "external")
+        // Ensure weapon stops collecting hits immediately
+        if (weapon != null)
+        {
+            weapon.AbortAttack();
+        }
+    }
+
+    public void ResetCombo(string reason)
     {
         if (onBeatStreak != 0) DebugHelper.LogCombat($"[PAC] Combo reset ({reason}).");
         onBeatStreak = 0;
         beatsSinceLastOnBeatPress = 0;
-    }
-
-    /// <summary>Aborts any ongoing attack and unlocks aim (called when player takes damage).</summary>
-    public void AbortAttack()
-    {
-        if (attackInProgress)
-        {
-            attackInProgress = false;
-            if (strongAimLockCoro != null)
-            {
-                StopCoroutine(strongAimLockCoro);
-                strongAimLockCoro = null;
-            }
-            isAimLocked = false;
-            DebugHelper.LogCombat("[PAC] Attack aborted due to damage.");
-        }
     }
     #endregion
 }

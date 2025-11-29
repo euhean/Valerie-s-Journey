@@ -44,8 +44,11 @@ public class Enemy : Entity
         SetDutyState(true); // Start enemies on patrol duty
     }
 
-    private void Start()
+    protected override void Start()
     {
+        // CRITICAL: Call base.Start() for proper collider configuration
+        base.Start();
+        
         playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
         EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
     }
@@ -71,9 +74,9 @@ public class Enemy : Entity
         if (currentState != EntityState.DEAD)
         {
             if (isStrongAttack)
-                AnimationHelper.ShowStrongHitShake(transform, SpriteRenderer, hitFlashColor, hitFlashDuration);
+                AnimationHelper.ShowStrongHitShake(transform, SpriteRenderer, hitFlashColor, hitFlashDuration, this);
             else
-                AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration);
+                AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration, this);
         }
     }
 
@@ -93,12 +96,12 @@ public class Enemy : Entity
         if (toDuty && currentState == EntityState.ALIVE)
         {
             StartPatrol();
-            DebugHelper.LogState($"{gameObject.name} is now on patrol duty");
+            DebugHelper.LogState(() => $"{gameObject.name} is now on patrol duty");
         }
         else
         {
             StopPatrol();
-            DebugHelper.LogState($"{gameObject.name} is now off duty (static)");
+            DebugHelper.LogState(() => $"{gameObject.name} is now off duty (static)");
         }
     }
     #endregion
@@ -174,7 +177,7 @@ public class Enemy : Entity
         playerTarget.TakeDamage(attackDamage);
         DebugHelper.LogCombat($"{gameObject.name} hit {playerTarget.name} for {attackDamage} damage");
 
-        AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration);
+        AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration, this);
     }
     #endregion
 }

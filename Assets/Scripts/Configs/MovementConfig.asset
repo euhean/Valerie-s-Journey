@@ -9,7 +9,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c7aaf6b204b675d4bbc5934448b87d99, type: 3}
+  m_Script: {fileID: 11500000, guid: 5234583b2f93e104799c8ddc6d4b71df, type: 3}
   m_Name: MovementConfig
   m_EditorClassIdentifier: 
   playerSpeed: 2
@@ -18,4 +18,3 @@ MonoBehaviour:
   playerReverseBrake: 30
   deadzoneEnter: 0.08
   deadzoneExit: 0.12
-  stopThreshold: 0.01

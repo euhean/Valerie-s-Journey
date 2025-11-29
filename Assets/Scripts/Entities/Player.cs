@@ -18,6 +18,12 @@ public class Player : Entity
     public Weapon playerWeapon;
     #endregion
 
+    #region Inspector: Visuals
+    [Header("Visual Settings")]
+    public Color aliveColor = Color.white;
+    public Color deadColor = Color.gray;
+    #endregion
+
     #region Cached Components
     private PlayerMover2D mover;
     private PlayerAttackController attackController;
@@ -27,60 +33,68 @@ public class Player : Entity
     protected override void Awake()
     {
         base.Awake();
-        
-        // 1. Get weapon GameObject FIRST
-        playerWeapon ??= GetComponentInChildren<Weapon>();
-        GameObject weaponGO = playerWeapon?.gameObject;
-        
-        // 2. Get other components
         mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
-        
-        // Acquire managers from GameManager if not set in inspector
-        // IMPORTANT: Must be in Awake (not Start) so they're available for OnEnable subscriptions
-        inputManager ??= GameManager.Instance?.inputManager;
-        timeManager  ??= GameManager.Instance?.timeManager;
-        
-        // 3. Pass weapon GameObject and managers to components
-        if (mover != null)
-        {
-            mover.weapon = weaponGO?.GetComponent<Weapon>();
-            mover.attackController = attackController;
-            if (inputManager != null) 
-                mover.inputManager = inputManager;
-        }
-        
-        if (attackController != null)
-        {
-            attackController.SetWeapon(weaponGO?.GetComponent<Weapon>());
-        }
-        
-        // Log errors if managers are still null after acquisition
-        if (GameManager.Instance == null)
-            DebugHelper.LogError("[Player] GameManager.Instance is null during Awake!");
-        if (inputManager == null)
-            DebugHelper.LogError("[Player] InputManager not found. Input will not work.");
-        if (timeManager == null)
-            DebugHelper.LogError("[Player] TimeManager not found. Timing will not work.");
+
+        // Use centralized weapon fallback logic
+        playerWeapon ??= ComponentHelper.FindWeaponFallback("Player");
     }
 
-    private void Start()
+    protected override void Start()
     {
-        // Self-register as main player
-        GameManager.Instance?.RegisterPlayer(this);
+        // CRITICAL: Call base.Start() for proper collider configuration
+        base.Start();
+        
+        // Acquire managers from GameManager if not set in inspector
+        inputManager ??= GameManager.Instance?.inputManager;
+        timeManager  ??= GameManager.Instance?.timeManager;
+
+        // Give mover the inputManager so it can run in FixedUpdate
+        if (mover != null) mover.inputManager = inputManager;
+
+        // NOTE: Self-registration removed to avoid duplicate calls.
+        // LevelManager handles registration when spawning the player.
+        // If this player is placed in the scene manually, GameManager.AutoConfigureScene will find it.
 
         // Set duty state now that things are wired
         SetDutyState(true);
+
+        // Ensure sprite is visible
+        UpdateVisuals();
+
+        // Idempotent registration - handled automatically by PlayerAttackController in OnEnable
+        // attackController subscribes to inputManager and timeManager events in its OnEnable
     }
 
     private void OnEnable()
     {
-        // PlayerAttackController manages its own event subscriptions in OnEnable
+        // Event subscription handled automatically by PlayerAttackController in OnEnable
+        // attackController subscribes to inputManager and timeManager events
     }
 
     private void OnDisable()
     {
-        // PlayerAttackController manages its own event unsubscriptions in OnDisable
+        // Event unsubscription handled automatically by PlayerAttackController in OnDisable
+        // attackController unsubscribes from inputManager and timeManager events
+    }
+    #endregion
+
+    #region Visuals
+    private void UpdateVisuals()
+    {
+        if (SpriteRenderer == null) 
+        {
+            DebugHelper.LogWarning("[Player] SpriteRenderer is null!");
+            return;
+        }
+        
+        SpriteRenderer.enabled = true;  // Make sure SpriteRenderer is enabled
+        
+        // Respect entity state for visuals
+        SpriteRenderer.color = (currentState == EntityState.ALIVE) ? aliveColor : deadColor;
+        
+        // Debug sprite state
+        DebugHelper.LogState(() => $"[Player] Sprite: {(SpriteRenderer.sprite ? SpriteRenderer.sprite.name : "NULL")}, Color: {SpriteRenderer.color}, Enabled: {SpriteRenderer.enabled}");
     }
     #endregion
 
@@ -111,17 +125,17 @@ public class Player : Entity
         // Show damage flash effect for better combat clarity
         if (currentState != EntityState.DEAD)
         {
-            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, GameConstants.HIT_FLASH_DURATION);
+            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, GameConstants.HIT_FLASH_DURATION, this);
         }
 
         // Reset combos and abort any ongoing strong-lock when hit
-        attackController?.ResetCombo();
+        attackController?.ResetCombo("took damage");
         attackController?.AbortAttack();
     }
 
     protected override void Die()
     {
-        DebugHelper.LogState($"{gameObject.name} died!");
+        DebugHelper.LogState(() => $"{gameObject.name} died!");
         SetState(EntityState.DEAD);
 
         // Disable collider and stop physics immediately
@@ -137,6 +151,12 @@ public class Player : Entity
 
         // Trigger death event instead of destroying the player
         EventBus.Instance?.Publish(new PlayerDiedEvent { player = this });
+    }
+
+    protected override void OnStateChanged(EntityState from, EntityState to)
+    {
+        base.OnStateChanged(from, to);
+        UpdateVisuals(); // Ensure sprite visibility is maintained
     }
     #endregion
 

@@ -15,6 +15,14 @@ public class TimeManager : BaseManager
     [Header("Beat Config (assigned by GameManager or in Inspector)")]
     public BeatConfig beatConfig; // assigned by GameManager.AutoConfigureScene when available
 
+    [Header("Audio")]
+    [Tooltip("Optional AudioClip to play on each beat (metronome sound)")]
+    public AudioClip beatSound;
+    [Range(0f, 1f)]
+    public float beatVolume = 0.5f;
+    
+    private AudioSource audioSource;
+
     /// <summary>Raised on each beat; payload = beat index (starting at 0).</summary>
     public event Action<int> OnBeat;
 
@@ -24,7 +32,6 @@ public class TimeManager : BaseManager
     private double nextBeatDSP = 0.0;
     private int beatIndex = 0;
     private double lastBeatDSP = -9999.0;
-
     // Small guard to prevent spamming StartRuntime
     private bool runtimeStarted = false;
 
@@ -32,6 +39,15 @@ public class TimeManager : BaseManager
     public override void Configure(GameManager gm)
     {
         base.Configure(gm);
+        
+        // Set up AudioSource for beat sounds
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.volume = beatVolume;
+        }
         // BeatConfig might already be assigned by GameManager.AutoConfigureScene
         if (beatConfig == null)
         {
@@ -55,7 +71,7 @@ public class TimeManager : BaseManager
     {
         if (runtimeStarted) return;
         runtimeStarted = true;
-        // Start the metronome loop using TimeManager's own coroutine capability
+        // Start the metronome loop using this MonoBehaviour
         metronomeCoroutine = StartCoroutine(MetronomeLoop());
         DebugHelper.LogManager("[TimeManager] Runtime started.");
     }
@@ -94,7 +110,7 @@ public class TimeManager : BaseManager
         lastBeatDSP = AudioSettings.dspTime;
         double dspNow = AudioSettings.dspTime;
         double secondsPerBeat = 60.0 / Math.Max(1f, bpm);
-        nextBeatDSP = dspNow + secondsPerBeat;
+        nextBeatDSP = dspNow + secondsPerBeat * 0.1; // small offset to avoid immediately firing
 
         while (running)
         {
@@ -105,6 +121,11 @@ public class TimeManager : BaseManager
             {
                 // Fire beat
                 lastBeatDSP = nextBeatDSP;
+                
+                // Play beat sound if available
+                if (beatSound != null && audioSource != null)
+                    audioSource.PlayOneShot(beatSound);
+                
                 try
                 {
                     OnBeat?.Invoke(beatIndex);

@@ -26,38 +26,6 @@ public static class DebugHelper
         catch { _config = null; }
     }
 
-    #region Public Properties for Debug Flags
-    /// <summary>Check if state logs are enabled. Useful for conditional expensive log operations.</summary>
-    public static bool enableStateLogs
-    {
-        get
-        {
-            EnsureConfig();
-            return _config == null || _config.enableStateLogs;
-        }
-    }
-
-    /// <summary>Check if manager logs are enabled. Useful for conditional expensive log operations.</summary>
-    public static bool enableManagerLogs
-    {
-        get
-        {
-            EnsureConfig();
-            return _config == null || _config.enableManagerLogs;
-        }
-    }
-
-    /// <summary>Check if combat logs are enabled. Useful for conditional expensive log operations.</summary>
-    public static bool enableCombatLogs
-    {
-        get
-        {
-            EnsureConfig();
-            return _config == null || _config.enableCombatLogs;
-        }
-    }
-    #endregion
-
     #region Compile-stripped logs (editor/dev only)
 
     [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
@@ -119,17 +87,50 @@ public static class DebugHelper
     [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
     public static void LogState(string message)
     {
-        EnsureConfig();
-        if (_config == null || _config.enableStateLogs) UnityEngine.Debug.Log("[State] " + message);
+        if (StateLogsEnabled) UnityEngine.Debug.Log("[State] " + message);
     }
 
     [Conditional("UNITY_EDITOR"), Conditional("DEVELOPMENT_BUILD")]
     public static void LogState(Func<string> provider)
     {
-        EnsureConfig();
-        if (_config == null || _config.enableStateLogs) UnityEngine.Debug.Log("[State] " + provider());
+        if (StateLogsEnabled) UnityEngine.Debug.Log("[State] " + provider());
     }
 
+    #endregion
+
+    #region Config Properties
+    /// <summary>Check if state logs are enabled (for conditional logging).</summary>
+    public static bool StateLogsEnabled
+    {
+        get
+        {
+            EnsureConfig();
+            return _config == null || _config.enableStateLogs;
+        }
+    }
+
+    /// <summary>Check if manager logs are enabled. Useful for conditional expensive log operations.</summary>
+    public static bool enableManagerLogs
+    {
+        get
+        {
+            EnsureConfig();
+            return _config == null || _config.enableManagerLogs;
+        }
+    }
+
+    /// <summary>Check if combat logs are enabled. Useful for conditional expensive log operations.</summary>
+    public static bool enableCombatLogs
+    {
+        get
+        {
+            EnsureConfig();
+            return _config == null || _config.enableCombatLogs;
+        }
+    }
+    
+    // Alias for compatibility
+    public static bool enableStateLogs => StateLogsEnabled;
     #endregion
 
     #region Always-on errors (not stripped)

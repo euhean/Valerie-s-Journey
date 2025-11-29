@@ -9,7 +9,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6899bbcf6ddefcb468af2c94786192e9, type: 3}
+  m_Script: {fileID: 11500000, guid: 117dd5d3f75446e47aae12af175e078c, type: 3}
   m_Name: DebugConfig
   m_EditorClassIdentifier: 
   enableLogs: 1

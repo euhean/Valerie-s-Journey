@@ -67,6 +67,7 @@ public class AnimationHelper : MonoBehaviour
             return;
         }
 
+        DebugHelper.LogCombat($"[Flash] Starting hit flash on {renderer.gameObject.name}");
         actualRunner.StartCoroutine(HitFlashCoroutine(renderer, flashColor, duration));
     }
 
@@ -81,6 +82,7 @@ public class AnimationHelper : MonoBehaviour
             return;
         }
 
+        DebugHelper.LogCombat($"[Flash] Starting strong hit flash+shake on {renderer.gameObject.name}");
         actualRunner.StartCoroutine(StrongHitShakeCoroutine(target, renderer, flashColor, duration));
     }
     #endregion

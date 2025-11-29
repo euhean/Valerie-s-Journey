@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -34,7 +33,6 @@ public class GameManager : MonoBehaviour
     [SerializeField] public TimeManager timeManager;
     [SerializeField] public LevelManager levelManager;
     [SerializeField] private DialogManager dialogManager;
-
     #endregion
 
     #region Inspector: Global Configs (ScriptableObjects)
@@ -125,20 +123,9 @@ public class GameManager : MonoBehaviour
         dialogManager ??= FindFirstObjectByType<DialogManager>();
         MainPlayer   ??= FindFirstObjectByType<Player>();
 
-        // Optionally push beatConfig into TimeManager if the field/property exists
+        // Direct assignment instead of reflection
         if (timeManager != null && beatConfig != null)
-        {
-            var tmType = timeManager.GetType();
-            var field = tmType.GetField("beatConfig", BindingFlags.Public | BindingFlags.Instance);
-            if (field != null && field.FieldType == typeof(BeatConfig))
-                field.SetValue(timeManager, beatConfig);
-            else
-            {
-                var prop = tmType.GetProperty("BeatConfig", BindingFlags.Public | BindingFlags.Instance);
-                if (prop != null && prop.PropertyType == typeof(BeatConfig) && prop.CanWrite)
-                    prop.SetValue(timeManager, beatConfig);
-            }
-        }
+            timeManager.beatConfig = beatConfig;
 
         EnsureAudioListener();
     }
@@ -189,6 +176,11 @@ public class GameManager : MonoBehaviour
             timeManager?.UnbindEvents();
             levelManager?.UnbindEvents();
             dialogManager?.UnbindEvents();
+
+            // Do NOT call EventBus.Instance.ClearAll() here.
+            // It wipes out subscriptions from non-manager entities (like Enemies/Player)
+            // which breaks the game if StopManagers is called during gameplay.
+            // Managers are responsible for unsubscribing themselves in UnbindEvents().
         }
         catch (Exception ex)
         {
@@ -227,14 +219,33 @@ public class GameManager : MonoBehaviour
     public void RegisterPlayer(Player p)
     {
         if (p == null) return;
+        
+        // Idempotency guard: if this player is already registered, skip
+        if (MainPlayer == p)
+        {
+            DebugHelper.LogManager($"[GameManager] Player {p.name} already registered. Skipping.");
+            return;
+        }
+
         MainPlayer = p;
         DebugHelper.LogManager(() => $"MainPlayer registered: {p.name}");
 
-        // wire managers
+        Weapon sceneWeapon = FindFirstObjectByType<Weapon>();
+        WirePlayerManagers(p);
+        WirePlayerComponents(p, sceneWeapon);
+        WireWeaponSystem(p, sceneWeapon);
+        PublishPlayerSpawnEvent(p);
+    }
+
+    private void WirePlayerManagers(Player p)
+    {
         p.inputManager ??= inputManager;
         p.timeManager  ??= timeManager;
+    }
 
-        // movement
+    private void WirePlayerComponents(Player p, Weapon sceneWeapon)
+    {
+        // Wire movement component
         var mover = p.GetComponent<PlayerMover2D>();
         if (mover != null)
         {
@@ -242,7 +253,7 @@ public class GameManager : MonoBehaviour
             mover.movementConfig ??= movementConfig;
         }
 
-        // attack controller
+        // Wire attack controller
         var pac = p.GetComponent<PlayerAttackController>();
         if (pac != null)
         {
@@ -250,14 +261,26 @@ public class GameManager : MonoBehaviour
             pac.timeManager  ??= timeManager;
             pac.combatConfig ??= combatConfig;
             pac.beatConfig   ??= beatConfig;
+            
+            // Auto-assign weapon if missing
+            pac.weapon ??= sceneWeapon;
+            if (pac.weapon != null)
+                DebugHelper.LogManager($"[GameManager] Auto-assigned weapon {pac.weapon.name} to PlayerAttackController");
         }
+    }
 
-        // weapon
-        var weapon = p.GetComponentInChildren<Weapon>(true);
-        if (weapon != null)
-            weapon.combatConfig ??= combatConfig;
+    private void WireWeaponSystem(Player p, Weapon playerWeapon)
+    {
+        if (playerWeapon != null)
+        {
+            playerWeapon.combatConfig ??= combatConfig;
+            playerWeapon.SetOwner(p);
+            DebugHelper.LogManager($"[GameManager] Set {p.name} as owner of {playerWeapon.name}");
+        }
+    }
 
-        // Publish spawn event safely
+    private void PublishPlayerSpawnEvent(Player p)
+    {
         try
         {
             EventBus.Instance?.Publish(new PlayerSpawnedEvent { player = p });
@@ -280,9 +303,11 @@ public class GameManager : MonoBehaviour
         State = next;
         if (State == GameState.Gameplay)
         {
+            DebugHelper.LogManager("Starting manager runtimes for gameplay...");
             inputManager?.StartRuntime();
             timeManager?.StartRuntime();
             levelManager?.StartRuntime();
+            DebugHelper.LogManager("All manager runtimes started.");
         }
         else
             StopManagers();

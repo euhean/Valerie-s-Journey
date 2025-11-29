@@ -9,6 +9,42 @@ using UnityEngine.InputSystem.UI;
 /// </summary>
 public static class ComponentHelper
 {
+    #region Weapon Fallback Assignment
+
+    /// <summary>
+    /// Centralized weapon finding logic to eliminate duplication.
+    /// Uses tag-based search first, then scene-wide search.
+    /// </summary>
+    public static Weapon FindWeaponFallback(string debugContext = "")
+    {
+        // Strategy 1: Tag-based (fastest)
+        try
+        {
+            GameObject weaponObj = GameObject.FindGameObjectWithTag("Weapon");
+            if (weaponObj != null)
+            {
+                Weapon w = weaponObj.GetComponent<Weapon>();
+                if (w != null) return w;
+            }
+        }
+        catch (UnityException ex)
+        {
+            DebugHelper.LogWarning($"[{debugContext}] Tag 'Weapon' not defined: {ex.Message}. Falling back to scene search.");
+        }
+
+        // Strategy 2: Scene-wide search
+        Weapon weapon = Object.FindFirstObjectByType<Weapon>();
+        if (weapon != null) return weapon;
+
+        // Strategy 3: Not found
+        if (!string.IsNullOrEmpty(debugContext))
+            DebugHelper.LogWarning($"[{debugContext}] No Weapon found. Create a separate Weapon GameObject in the scene or assign it in Inspector.");
+        
+        return null;
+    }
+
+    #endregion
+
     #region Collider <-> Sprite
 
     /// <summary>
@@ -32,11 +68,12 @@ public static class ComponentHelper
         Bounds spriteBounds = spriteRenderer.sprite.bounds;
         boxCollider.size   = (Vector2)spriteBounds.size;
         boxCollider.offset = (Vector2)spriteBounds.center;
+        boxCollider.isTrigger = false; // Ensure it's a solid collider, not a trigger
 
-        if (spriteRenderer.transform.lossyScale != Vector3.one && DebugHelper.enableStateLogs)
-            DebugHelper.LogState($"ComponentHelper: Non-uniform scale {spriteRenderer.transform.lossyScale} — collider matches sprite-local size.");
+        if (spriteRenderer.transform.lossyScale != Vector3.one && DebugHelper.StateLogsEnabled)
+            DebugHelper.LogState(() => $"ComponentHelper: Non-uniform scale {spriteRenderer.transform.lossyScale} — collider matches sprite-local size.");
 
-        if (DebugHelper.enableStateLogs)
+        if (DebugHelper.StateLogsEnabled)
             DebugHelper.LogState(() => $"Auto-configured {boxCollider.name}: size={boxCollider.size}, offset={boxCollider.offset}");
     }
 
@@ -59,20 +96,21 @@ public static class ComponentHelper
 
         if (isStatic)
         {
-            rb.bodyType       = RigidbodyType2D.Kinematic;
-            rb.linearVelocity       = Vector2.zero;
-            rb.angularVelocity= 0f;
-            rb.freezeRotation = true;
+            rb.bodyType         = RigidbodyType2D.Kinematic;
+            rb.linearVelocity   = Vector2.zero;
+            rb.angularVelocity  = 0f;
+            rb.freezeRotation   = true;
         }
         else
         {
-            rb.bodyType       = RigidbodyType2D.Dynamic;
-            rb.linearDamping           = GameConstants.RIGIDBODY_LINEAR_DAMPING;
-            rb.angularDamping    = GameConstants.RIGIDBODY_ANGULAR_DAMPING;
-            rb.freezeRotation = false;
+            rb.bodyType         = RigidbodyType2D.Dynamic;
+            rb.linearDamping    = GameConstants.RIGIDBODY_LINEAR_DAMPING;
+            rb.angularDamping   = GameConstants.RIGIDBODY_ANGULAR_DAMPING;
+            rb.freezeRotation   = false;
+            rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous; // Prevent wall clipping
         }
 
-        if (DebugHelper.enableStateLogs)
+        if (DebugHelper.StateLogsEnabled)
             DebugHelper.LogState(() => $"Configured Rigidbody2D for {rb.name}: type={rb.bodyType}, linearDamping={rb.linearDamping}, angularDamping={rb.angularDamping}");
     }
 
@@ -98,8 +136,8 @@ public static class ComponentHelper
         if (entity.SpriteRenderer != null && entity.BoxCollider != null)
             AutoConfigureColliderToSprite(entity.SpriteRenderer, entity.BoxCollider);
 
-        if (DebugHelper.enableStateLogs)
-            DebugHelper.LogState($"Auto-configured all components for {entity.name}");
+        if (DebugHelper.StateLogsEnabled)
+            DebugHelper.LogState(() => $"Auto-configured all components for {entity.name}");
     }
 
     #endregion
