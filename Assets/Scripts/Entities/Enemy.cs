@@ -25,10 +25,9 @@ public class Enemy : Entity
     public float attackRange   = 0.6f;
     public float attackDamage  = 8f;
     public float attackCooldown = 1.0f;
-    #endregion
-
     private Coroutine patrolCoroutine;
     private float lastAttackTime = -999f;
+    #endregion
 
     #region Unity Lifecycle
     protected override void Awake()
@@ -43,8 +42,8 @@ public class Enemy : Entity
     {
         // CRITICAL: Call base.Start() for proper collider configuration
         base.Start();
-        
         playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
+        StartPatrol();
         EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
     }
 
@@ -61,12 +60,12 @@ public class Enemy : Entity
     #region Combat / Damage
     public override void TakeDamage(float amount)
     {
-        if (currentState == EntityState.Dead) return;
+        if (CurrentState == EntityState.Dead) return;
 
         base.TakeDamage(amount);
 
         bool isStrongAttack = amount >= GameConstants.STRONG_DAMAGE;
-        if (currentState != EntityState.Dead)
+        if (CurrentState != EntityState.Dead)
         {
             if (isStrongAttack)
                 AnimationHelper.ShowStrongHitShake(transform, SpriteRenderer, hitFlashColor, hitFlashDuration, this);
@@ -80,7 +79,7 @@ public class Enemy : Entity
     protected override void OnStateChanged(EntityState from, EntityState to)
     {
         UpdateVisuals();
-        if (currentState == EntityState.Dead)
+        if (CurrentState == EntityState.Dead)
         {
             StopPatrol();
             DebugHelper.LogState(() => $"{gameObject.name} is now off duty (static)");
@@ -93,7 +92,7 @@ public class Enemy : Entity
     private void UpdateVisuals()
     {
         if (SpriteRenderer == null) return;
-        SpriteRenderer.color = (currentState == EntityState.Alive) ? aliveColor : deadColor;
+        SpriteRenderer.color = (CurrentState == EntityState.Alive) ? aliveColor : deadColor;
     }
 
     private void ShowDeathLabel()
@@ -106,7 +105,6 @@ public class Enemy : Entity
     public void StartPatrol()
     {
         if (patrolCoroutine != null) return;
-        playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
         patrolCoroutine = StartCoroutine(PatrolRoutine());
     }
 
@@ -121,7 +119,7 @@ public class Enemy : Entity
     {
         if (Rigidbody == null) yield break;
 
-        while (dutyState == DutyState.OnDuty && currentState == EntityState.Alive)
+        while (CurrentDutyState == DutyState.OnDuty && CurrentState == EntityState.Alive)
         {
             // Check if target is missing or dead
             if (playerTarget == null || !playerTarget.IsAlive)

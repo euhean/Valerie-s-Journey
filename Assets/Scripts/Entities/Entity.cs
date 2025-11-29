@@ -20,8 +20,12 @@ public abstract class Entity : MonoBehaviour
     #region State
     public float MaxHealth => maxHealth;
     public float Health { get; protected set; }
-    public EntityState currentState = EntityState.Alive;
-    public DutyState dutyState = DutyState.OffDuty;
+    
+    private EntityState currentState = EntityState.Alive;
+    public EntityState CurrentState => currentState;
+
+    private DutyState dutyState = DutyState.OffDuty;
+    public DutyState CurrentDutyState => dutyState;
     #endregion
 
     #region Components (cached on Awake)
@@ -88,7 +92,7 @@ public abstract class Entity : MonoBehaviour
     {
         if (!IsAlive) return;
         DebugHelper.LogState(() => $"{gameObject.name} died!");
-        dutyState = DutyState.OffDuty;
+        SetDutyState(DutyState.OffDuty);
         ChangeState(EntityState.Dead);
     }
     #endregion
