@@ -29,6 +29,9 @@ public class GameManager : MonoBehaviour
     [SerializeField] public TimeManager timeManager;
     [SerializeField] public LevelManager levelManager;
     [SerializeField] private DialogManager dialogManager;
+
+    [Header("Feature Toggles")]
+    [SerializeField] private bool enableDialogManager = false;
     #endregion
 
     #region Inspector: Global Configs (ScriptableObjects)
@@ -96,10 +99,10 @@ public class GameManager : MonoBehaviour
         inputManager = null;
         timeManager = null;
         levelManager = null;
+        dialogManager = null;
         MainPlayer = null;
 
         AutoConfigureScene();
-        RunManagerLifecycle();
 
         // Restart runtime if we're already in gameplay
         if (State == GameState.Gameplay)
@@ -107,6 +110,8 @@ public class GameManager : MonoBehaviour
             inputManager?.StartRuntime();
             timeManager?.StartRuntime();
             levelManager?.StartRuntime();
+            if (enableDialogManager)
+                dialogManager?.StartRuntime();
         }
     }
 
@@ -116,7 +121,10 @@ public class GameManager : MonoBehaviour
         inputManager ??= FindFirstObjectByType<InputManager>();
         timeManager  ??= FindFirstObjectByType<TimeManager>();
         levelManager ??= FindFirstObjectByType<LevelManager>();
-        dialogManager ??= FindFirstObjectByType<DialogManager>();
+        if (enableDialogManager)
+            dialogManager ??= FindFirstObjectByType<DialogManager>();
+        else
+            dialogManager = null;
         MainPlayer   ??= FindFirstObjectByType<Player>();
 
         // Wire BeatConfig directly (no reflection)
@@ -135,19 +143,22 @@ public class GameManager : MonoBehaviour
         inputManager?.Configure(this);
         timeManager?.Configure(this);
         levelManager?.Configure(this);
-        dialogManager?.Configure(this);
+        if (enableDialogManager)
+            dialogManager?.Configure(this);
 
         // Phase 2: Initialize (setup internal state)
         inputManager?.Initialize();
         timeManager?.Initialize();
         levelManager?.Initialize();
-        dialogManager?.Initialize();
+        if (enableDialogManager)
+            dialogManager?.Initialize();
 
         // Phase 3: BindEvents (subscribe to event bus)
         inputManager?.BindEvents();
         timeManager?.BindEvents();
         levelManager?.BindEvents();
-        dialogManager?.BindEvents();
+        if (enableDialogManager)
+            dialogManager?.BindEvents();
 
         DebugHelper.LogManager("RunManagerLifecycle completed (Configure/Initialize/Bind).");
         managersStarted = true;
@@ -165,13 +176,15 @@ public class GameManager : MonoBehaviour
             inputManager?.StopRuntime();
             timeManager?.StopRuntime();
             levelManager?.StopRuntime();
-            dialogManager?.StopRuntime();
+            if (enableDialogManager)
+                dialogManager?.StopRuntime();
 
             // Phase 2: Unbind events (each manager unsubscribes itself)
             inputManager?.UnbindEvents();
             timeManager?.UnbindEvents();
             levelManager?.UnbindEvents();
-            dialogManager?.UnbindEvents();
+            if (enableDialogManager)
+                dialogManager?.UnbindEvents();
 
             // NOTE: Do NOT call EventBus.ClearAll() here!
             // It would wipe entity subscriptions (Enemy, Player) breaking gameplay.

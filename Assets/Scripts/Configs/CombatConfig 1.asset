@@ -9,8 +9,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 65b8e9955952d3c4ab24f82bfdc5b06e, type: 3}
-  m_Name: CombatConfig
+  m_Script: {fileID: 11500000, guid: 3bb06f87e33ee0a66a12289678d61de9, type: 3}
+  m_Name: CombatConfig 1
   m_EditorClassIdentifier: 
   basicDamage: 5
   strongDamage: 20
