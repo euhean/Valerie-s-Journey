@@ -142,6 +142,14 @@ public class AnimationHelper : MonoBehaviour
     {
         if (renderer == null) yield break;
         Color originalColor = renderer.color;
+        
+        // Safety: if original color is transparent/invalid, default to white
+        if (originalColor.a < 0.01f)
+        {
+            originalColor = Color.white;
+            DebugHelper.LogWarning($"[AnimationHelper] Renderer {renderer.gameObject.name} had transparent color, defaulting to white");
+        }
+        
         renderer.color = flashColor;
         float elapsed = 0f;
         while (elapsed < duration)

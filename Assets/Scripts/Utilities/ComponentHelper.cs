@@ -49,9 +49,9 @@ public static class ComponentHelper
 
     /// <summary>
     /// Auto-configures BoxCollider2D to match SpriteRenderer bounds (sprite-local)
-    /// and centers everything.
+    /// and centers everything. Preserves the collider's trigger flag unless forceSolid is true.
     /// </summary>
-    public static void AutoConfigureColliderToSprite(SpriteRenderer spriteRenderer, BoxCollider2D boxCollider)
+    public static void AutoConfigureColliderToSprite(SpriteRenderer spriteRenderer, BoxCollider2D boxCollider, bool forceSolid = false)
     {
         if (spriteRenderer == null || boxCollider == null)
         {
@@ -64,11 +64,13 @@ public static class ComponentHelper
             return;
         }
 
+        bool originalTriggerState = boxCollider.isTrigger;
+
         // sprite.bounds is in sprite-local units
         Bounds spriteBounds = spriteRenderer.sprite.bounds;
         boxCollider.size   = (Vector2)spriteBounds.size;
         boxCollider.offset = (Vector2)spriteBounds.center;
-        boxCollider.isTrigger = false; // Ensure it's a solid collider, not a trigger
+        boxCollider.isTrigger = forceSolid ? false : originalTriggerState;
 
         if (spriteRenderer.transform.lossyScale != Vector3.one && DebugHelper.StateLogsEnabled)
             DebugHelper.LogState(() => $"ComponentHelper: Non-uniform scale {spriteRenderer.transform.lossyScale} — collider matches sprite-local size.");

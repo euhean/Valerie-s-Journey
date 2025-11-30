@@ -326,5 +326,26 @@ public class GameManager : MonoBehaviour
         else
             StopManagers();
     }
+
+    /// <summary>
+    /// Called when the player dies to halt runtime systems that should not continue looping.
+    /// Leaves InputManager and LevelManager running so UI and restart flows still work.
+    /// </summary>
+    public void HandlePlayerDeath()
+    {
+        if (!managersStarted) return;
+
+        DebugHelper.LogManager("GameManager.HandlePlayerDeath(): stopping non-essential managers.");
+
+        // Keep input + level alive for menu navigation while pausing everything else.
+        timeManager?.StopRuntime();
+        if (enableDialogManager)
+            dialogManager?.StopRuntime();
+
+        // Also pause beat visualizers so they stop logging on-beat checks post-mortem.
+        var visualizers = FindObjectsByType<BeatVisualizer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        foreach (var visualizer in visualizers)
+            visualizer.SetPaused(true);
+    }
     #endregion
 }

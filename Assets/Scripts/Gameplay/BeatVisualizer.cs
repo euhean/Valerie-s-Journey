@@ -17,6 +17,7 @@ public class BeatVisualizer : MonoBehaviour
     private int currentBar = 0;
     private bool inputProcessedThisFrame = false;
     private Coroutine activeCoroutine; // Guarda la corrutina activa
+    private bool isPaused = false;
 
     [System.Obsolete]
     private void Start()
@@ -51,7 +52,7 @@ public class BeatVisualizer : MonoBehaviour
     /// </summary>
     private void HandleBeat(int beatIndex)
     {
-        if (bars.Length == 0) return;
+        if (isPaused || bars.Length == 0) return;
 
         // Si no presionaste nada en el beat anterior, la barra actual se pone ROJA (fallo)
         if (!inputProcessedThisFrame)
@@ -76,7 +77,7 @@ public class BeatVisualizer : MonoBehaviour
     /// </summary>
     private void HandleInput(double dspTime)
     {
-        if (timeManager == null || bars.Length == 0)
+        if (isPaused || timeManager == null || bars.Length == 0)
             return;
 
         // Si ya procesamos un input en este beat, ignora los demás
@@ -108,6 +109,7 @@ public class BeatVisualizer : MonoBehaviour
     /// </summary>
     private void FlashBar(Image bar, Color flashColor)
     {
+        if (isPaused || bar == null) return;
         // Detener la corrutina anterior si existe
         if (activeCoroutine != null)
             StopCoroutine(activeCoroutine);
@@ -128,5 +130,30 @@ public class BeatVisualizer : MonoBehaviour
         bar.color = flashColor;
         yield return new WaitForSeconds(flashDuration);
         bar.color = baseColor;
+    }
+
+    /// <summary>
+    /// Allows external systems (GameManager) to pause all visual updates, e.g., after player death.
+    /// </summary>
+    public void SetPaused(bool paused)
+    {
+        isPaused = paused;
+        if (paused)
+        {
+            if (activeCoroutine != null)
+            {
+                StopCoroutine(activeCoroutine);
+                activeCoroutine = null;
+            }
+
+            if (bars != null)
+            {
+                foreach (var bar in bars)
+                {
+                    if (bar != null)
+                        bar.color = baseColor;
+                }
+            }
+        }
     }
 }

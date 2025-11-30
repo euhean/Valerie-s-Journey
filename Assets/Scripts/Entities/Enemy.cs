@@ -36,12 +36,30 @@ public class Enemy : Entity
         gameObject.tag = "Enemy";
         UpdateVisuals();
         SetDutyState(DutyState.OnDuty); // Start enemies on patrol duty
+
+        if (Rigidbody != null)
+        {
+            Rigidbody.bodyType = RigidbodyType2D.Kinematic;
+            Rigidbody.linearVelocity = Vector2.zero;
+            Rigidbody.angularVelocity = 0f;
+            Rigidbody.freezeRotation = true;
+        }
+        else
+        {
+            DebugHelper.LogWarning("Enemy: Missing Rigidbody2D component — cannot disable pushback.");
+        }
     }
 
     protected override void Start()
     {
         // CRITICAL: Call base.Start() for proper collider configuration
         base.Start();
+
+        if (SpriteRenderer != null)
+            DebugHelper.LogState(() => $"Enemy '{gameObject.name}' using sprite '{SpriteRenderer.sprite?.name ?? "<missing sprite>"}'.");
+        else
+            DebugHelper.LogState(() => $"Enemy '{gameObject.name}' missing SpriteRenderer reference.");
+
         playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
         StartPatrol();
         EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
@@ -93,6 +111,7 @@ public class Enemy : Entity
     {
         if (SpriteRenderer == null) return;
         SpriteRenderer.color = (CurrentState == EntityState.Alive) ? aliveColor : deadColor;
+        DebugHelper.LogState(() => $"Enemy '{gameObject.name}' color set to {SpriteRenderer.color} (alive={aliveColor}, dead={deadColor})");
     }
 
     private void ShowDeathLabel()
