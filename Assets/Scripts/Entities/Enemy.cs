@@ -155,8 +155,8 @@ public class Enemy : Entity
 
             if (playerTarget == null || !playerTarget.IsAlive)
             {
-                yield return null;
-                continue;
+                StopPatrol();
+                yield break;
             }
 
             Vector2 toTarget = playerTarget.transform.position - transform.position;
@@ -181,7 +181,7 @@ public class Enemy : Entity
 
     private void TryAttack()
     {
-        if (playerTarget == null) return;
+        if (playerTarget == null || !playerTarget.IsAlive) return;
         if (Time.time - lastAttackTime < attackCooldown) return;
 
         lastAttackTime = Time.time;

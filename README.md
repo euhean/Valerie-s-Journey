@@ -2,6 +2,25 @@
 
 ## Overview
 
+### Table of Contents
+
+1. [Overview](#overview)
+2. [Technical Specifications](#technical-specifications)
+3. [Game Flow](#game-flow-session-fsm)
+4. [Gameplay Concept & Core Features](#gameplay-concept)
+5. [Episode 0](#episode-0--proof-of-concept)
+6. [Combat & Controls](#combat--controls)
+7. [Playable Characters](#playable-characters)
+8. [Rhythm & Timing](#rhythm--timing)
+9. [Software Architecture](#software-architecture-high-level)
+10. [Data & Authoring](#data--authoring-scriptableobjects)
+11. [Defensive Coding](#defensive-coding--null-safety)
+12. [Project Structure](#project-structure-proposed)
+13. [Quick Start](#quick-start-unity--xbox-new-input-system)
+14. [Testing & QA Priorities](#testing--qa-priorities)
+15. [Roadmap](#roadmap-placeholder)
+16. [License](#license--credits)
+
 Valerie's Journey is a 2D top-down pixel‑art shooter dungeon crawler, emphasizing rhythmic combat mechanics, narrative depth, and immersive aesthetics. Inspired by **Hotline Miami** and **Hades**, the project combines intense action, character‑driven storytelling, and musical interaction.
 
 ## Technical Specifications
@@ -44,6 +63,14 @@ A rhythm‑driven, top‑down action crawler. Players eliminate devilspawn foes 
 
 * **Hotline Miami:** fast, stylish action and strong audiovisual identity
 * **Hades:** reactive dialogue system and expressive UI/typography
+
+### Recent Gameplay Updates
+
+* **Death-safe manager flow** – `GameManager.HandlePlayerDeath()` now pauses TimeManager, dialog runtime, and every BeatVisualizer instance while keeping Input+Level managers alive for restart UI, eliminating post-death log spam.
+* **Enemy polish** – runtime clones auto-configure Rigidbody2D in `OnEnable`, stop patrolling when their `playerTarget` vanishes, and never attack a dead player; collider helper preserves trigger states so they no longer push the player around.
+* **Beat visual pause** – BeatVisualizer exposes `SetPaused(bool)` so GameManager can freeze bar animations/logging on demand.
+* **Auto-spawn toggle** – LevelManager gained an `autoSpawnEnemies` flag to let designers spawn only the enemies placed in-scene during tests.
+* **Weapon safeguards** – attack flashes and DamageApplied events now check for missing renderers/EventBus to avoid playmode exceptions when prototyping scenes.
 
 ## Episode 0 – Proof of Concept
 
@@ -121,6 +148,12 @@ Three unique playable characters are planned, each with distinct mechanics and n
   * **Enemy : Entity** – AIController + AttackController (optionally rhythm‑aware)
   * **NPC : Entity** – interaction + dialogue triggers
 
+  ### Runtime Safety Additions
+
+  * **Central death handling** – `HandlePlayerDeath()` coordinates all manager shutdowns and pauses BeatVisualizer instances so post-mortem gameplay truly stops.
+  * **BeatVisualizer.SetPaused(bool)** – public API used by GameManager and future pause menus to suspend rhythmic UI instantly.
+  * **Enemy patrol guards** – patrol coroutine exits if `playerTarget` goes null/dead, and `TryAttack()` re-checks before applying damage.
+
 ## Data & Authoring (ScriptableObjects)
 
 * **Beatmap/ConductorConfig** – BPM, time signature, quantization, latency offsets
@@ -139,6 +172,12 @@ Runtime scenes are frequently rearranged during prototyping, so systems now foll
 3. **Graceful feature degradation** – Visual helpers (weapon flashes, beat bars) skip their effects if the renderer/UI references are absent but continue gameplay so QA can keep testing other systems.
 
 Whenever you add a MonoBehaviour that depends on scene references, mirror this pattern: `Find`/inject the reference, validate it up front, then log and disable or fallback before Update logic runs.
+
+Additional examples:
+
+* `PlayerAnimator` disables itself if the Animator or Rigidbody2D is missing, preventing null-driven coroutine errors.
+* `BeatVisualizer` validates its bar array during Start and disables itself (with a warning) when UI wiring is incomplete.
+* `Weapon.StartAttackWindow` now logs and skips hit flashes when the SpriteRenderer is absent, and refuses to publish events when `EventBus.Instance` is null.
 
 ## Project Structure (proposed)
 
@@ -162,6 +201,12 @@ Assets/
 3. **Scenes:** `App_Boot` (managers/EventBus), `UI_Global` (HUD & dialogue), `EP0_Level` (graybox). Start with `App_Boot` and load others **additively**.
 4. **Input Actions:** Create asset with `Move(LS)`, `Aim(RS)`, `Basic(A)`, `Interact(X)`, `Pause(Start)`. Use **PlayerInput** and route to **InputManager**.
 5. **Preload Handshake:** LevelManager pre‑warms pools/materials/fonts; AudioManager queues song; TimeManager locks to DSP; signal **ReadyToStart** → enter PreGame/Cinematic/Dialogue/Gameplay per flow.
+
+## Testing & QA Priorities
+
+* **Unit tests (planned):** cover PlayerAnimator attack buffering, BeatVisualizer pause behavior, GameManager death-handling flow, and Entity state transitions via Unity Test Framework.
+* **Integration scenarios:** verify enemy patrol + physics interactions (no post-death pushes), ensure auto-spawn toggle respects handcrafted scene setups, and confirm BeatVisualizer bars always restore colors after successive flashes.
+* **Performance watchpoints:** cache Animator state hashes (PlayerAnimator) and reduce redundant DebugHelper logging when profiling release builds.
 
 ## Roadmap (placeholder)
 
