@@ -15,6 +15,10 @@ public class LevelManager : BaseManager
     [Header("Spawn points (assign transforms in inspector)")]
     public Transform[] playerSpawnPoints;
     public Transform[] enemySpawnPoints;
+
+    [Header("Runtime Controls")]
+    [SerializeField]
+    private bool autoSpawnEnemies = false;
     #endregion
 
     #region Private
@@ -59,6 +63,24 @@ public class LevelManager : BaseManager
             else if (!sp) DebugHelper.LogError("LevelManager: Cannot spawn player (no valid spawn point).");
             else SpawnPlayer(sp.position);
         }
+
+        if (autoSpawnEnemies)
+        {
+            // Spawn identical enemy minions at every valid spawn point using prefab[0]
+            if (enemyPrefabs == null || enemyPrefabs.Length == 0 || enemyPrefabs[0] == null)
+            {
+                DebugHelper.LogWarning("LevelManager: enemyPrefabs[0] not assigned — minions not spawned.");
+            }
+            else if (enemySpawnPoints != null && enemySpawnPoints.Length > 0)
+            {
+                for (int i = 0; i < enemySpawnPoints.Length; i++)
+                {
+                    var spawnPoint = enemySpawnPoints[i];
+                    if (!spawnPoint) continue;
+                    SpawnEnemy(0, spawnPoint.position);
+                }
+            }
+        }
     }
 
     public override void Pause(bool isPaused)
@@ -94,6 +116,7 @@ public class LevelManager : BaseManager
     private void OnPlayerDied(PlayerDiedEvent e)
     {
         DebugHelper.LogManager($"Player {e.player.name} died - showing death screen via ComponentHelper");
+        gameManager?.HandlePlayerDeath();
         ShowDeathScreen();
     }
     #endregion

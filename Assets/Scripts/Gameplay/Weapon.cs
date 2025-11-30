@@ -103,8 +103,8 @@ public class Weapon : MonoBehaviour
     {
         // Require owner entity to be alive and on duty to prevent null attacker in events
         bool canAttack = ownerEntity != null && 
-                        ownerEntity.currentState == Entity.EntityState.Alive && 
-                        ownerEntity.dutyState == Entity.DutyState.OnDuty;
+                        ownerEntity.CurrentState == Entity.EntityState.Alive && 
+                        ownerEntity.CurrentDutyState == Entity.DutyState.OnDuty;
         
         if (!canAttack)
             return;
@@ -155,8 +155,8 @@ public class Weapon : MonoBehaviour
     public void UpdateAiming(Vector2 aimDirection)
     {
         if (ownerEntity == null ||
-            ownerEntity.currentState != Entity.EntityState.Alive ||
-            ownerEntity.dutyState != Entity.DutyState.OnDuty)
+            ownerEntity.CurrentState != Entity.EntityState.Alive ||
+            ownerEntity.CurrentDutyState != Entity.DutyState.OnDuty)
             return;
 
         float threshSq = GameConstants.WEAPON_AIM_THRESHOLD * GameConstants.WEAPON_AIM_THRESHOLD;
@@ -242,8 +242,8 @@ public class Weapon : MonoBehaviour
         isAttacking = false;
 
         bool show = ownerEntity != null &&
-                    ownerEntity.currentState == Entity.EntityState.Alive &&
-                    ownerEntity.dutyState == Entity.DutyState.OnDuty;
+                    ownerEntity.CurrentState == Entity.EntityState.Alive &&
+                    ownerEntity.CurrentDutyState == Entity.DutyState.OnDuty;
 
         SetVisualState(show);
         if (weaponCollider) weaponCollider.enabled = show;

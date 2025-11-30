@@ -103,12 +103,6 @@ public class InputManager : BaseManager
 
     public override void UnbindEvents()
     {
-        if (!actionsBound)
-        {
-            DebugHelper.LogWarning("InputManager: Events not bound, nothing to unbind.");
-            return;
-        }
-
         if (basicAction && basicAction.action != null)
             basicAction.action.performed -= HandleBasicPerformed;
 
@@ -126,8 +120,12 @@ public class InputManager : BaseManager
     {
         // Safety net for domain reloads/scene changes
         DebugHelper.LogManager("InputManager: OnDisable called, cleaning up...");
-        DisableAll();
-        UnbindEvents();
+        if (!actionsBound && !runtimeActive) return;
+        else
+        {
+            DisableAll();
+            UnbindEvents();
+        }
     }
     #endregion
 
