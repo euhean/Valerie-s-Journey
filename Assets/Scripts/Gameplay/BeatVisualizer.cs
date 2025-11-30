@@ -18,12 +18,20 @@ public class BeatVisualizer : MonoBehaviour
     private bool inputProcessedThisFrame = false;
     private Coroutine activeCoroutine; // Guarda la corrutina activa
     private bool isPaused = false;
+    private bool isInitialized = false;
 
     [System.Obsolete]
     private void Start()
     {
         timeManager = FindObjectOfType<TimeManager>();
         inputManager = FindObjectOfType<InputManager>();
+
+        if (bars == null || bars.Length == 0)
+        {
+            DebugHelper.LogWarning("[BeatVisualizer] Bars array not assigned. Disabling component.");
+            enabled = false;
+            return;
+        }
 
         // Suscribirse a los eventos
         if (timeManager != null)
@@ -34,7 +42,12 @@ public class BeatVisualizer : MonoBehaviour
 
         // Inicializar barras con color base
         foreach (var bar in bars)
-            bar.color = baseColor;
+        {
+            if (bar != null)
+                bar.color = baseColor;
+        }
+
+        isInitialized = true;
     }
 
     private void OnDestroy()
@@ -52,7 +65,7 @@ public class BeatVisualizer : MonoBehaviour
     /// </summary>
     private void HandleBeat(int beatIndex)
     {
-        if (isPaused || bars.Length == 0) return;
+        if (isPaused || !isInitialized) return;
 
         // Si no presionaste nada en el beat anterior, la barra actual se pone ROJA (fallo)
         if (!inputProcessedThisFrame)
@@ -77,7 +90,7 @@ public class BeatVisualizer : MonoBehaviour
     /// </summary>
     private void HandleInput(double dspTime)
     {
-        if (isPaused || timeManager == null || bars.Length == 0)
+        if (isPaused || timeManager == null || !isInitialized)
             return;
 
         // Si ya procesamos un input en este beat, ignora los demás
@@ -109,7 +122,7 @@ public class BeatVisualizer : MonoBehaviour
     /// </summary>
     private void FlashBar(Image bar, Color flashColor)
     {
-        if (isPaused || bar == null) return;
+        if (isPaused || bar == null || !isInitialized) return;
         // Detener la corrutina anterior si existe
         if (activeCoroutine != null)
             StopCoroutine(activeCoroutine);
@@ -127,9 +140,11 @@ public class BeatVisualizer : MonoBehaviour
     /// </summary>
     private IEnumerator FlashCoroutine(Image bar, Color flashColor)
     {
+        if (bar == null) yield break;
         bar.color = flashColor;
         yield return new WaitForSeconds(flashDuration);
-        bar.color = baseColor;
+        if (bar != null)
+            bar.color = baseColor;
     }
 
     /// <summary>

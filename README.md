@@ -130,6 +130,16 @@ Three unique playable characters are planned, each with distinct mechanics and n
 * **EventAssets** – Dialogue/Cinematic/Gameplay events with payloads
 * **UITheme** – border color/type and text animation curves per character & mind state
 
+## Defensive Coding / Null-Safety
+
+Runtime scenes are frequently rearranged during prototyping, so systems now follow a few defensive guidelines:
+
+1. **Fail fast with logs** – Whenever a required component is missing (Animator, Rigidbody2D, SpriteRenderer, etc.) the script emits a `DebugHelper.LogWarning` and disables itself instead of throwing null exceptions (`PlayerAnimator`, `BeatVisualizer`).
+2. **Optional references use null-propagation** – Manager lookups and EventBus publishes are guarded with `?.` or explicit null checks before invoking events (`LevelManager`, `Weapon`).
+3. **Graceful feature degradation** – Visual helpers (weapon flashes, beat bars) skip their effects if the renderer/UI references are absent but continue gameplay so QA can keep testing other systems.
+
+Whenever you add a MonoBehaviour that depends on scene references, mirror this pattern: `Find`/inject the reference, validate it up front, then log and disable or fallback before Update logic runs.
+
 ## Project Structure (proposed)
 
 ```

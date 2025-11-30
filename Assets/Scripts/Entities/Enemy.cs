@@ -36,18 +36,11 @@ public class Enemy : Entity
         gameObject.tag = "Enemy";
         UpdateVisuals();
         SetDutyState(DutyState.OnDuty); // Start enemies on patrol duty
+    }
 
-        if (Rigidbody != null)
-        {
-            Rigidbody.bodyType = RigidbodyType2D.Kinematic;
-            Rigidbody.linearVelocity = Vector2.zero;
-            Rigidbody.angularVelocity = 0f;
-            Rigidbody.freezeRotation = true;
-        }
-        else
-        {
-            DebugHelper.LogWarning("Enemy: Missing Rigidbody2D component — cannot disable pushback.");
-        }
+    private void OnEnable()
+    {
+        ConfigurePhysicsBody();
     }
 
     protected override void Start()
@@ -160,6 +153,12 @@ public class Enemy : Entity
                 }
             }
 
+            if (playerTarget == null || !playerTarget.IsAlive)
+            {
+                yield return null;
+                continue;
+            }
+
             Vector2 toTarget = playerTarget.transform.position - transform.position;
             float distance = toTarget.magnitude;
 
@@ -191,6 +190,24 @@ public class Enemy : Entity
         DebugHelper.LogCombat($"{gameObject.name} hit {playerTarget.name} for {attackDamage} damage");
 
         AnimationHelper.ShowHitFlash(SpriteRenderer, hitFlashColor, hitFlashDuration, this);
+    }
+
+    /// <summary>
+    /// Configure Rigidbody2D properties when the object becomes active so physics settles after Unity finishes its own initialization.
+    /// </summary>
+    private void ConfigurePhysicsBody()
+    {
+        if (Rigidbody != null)
+        {
+            Rigidbody.bodyType = RigidbodyType2D.Kinematic;
+            Rigidbody.linearVelocity = Vector2.zero;
+            Rigidbody.angularVelocity = 0f;
+            Rigidbody.freezeRotation = true;
+        }
+        else
+        {
+            DebugHelper.LogWarning("Enemy: Missing Rigidbody2D component — cannot disable pushback.");
+        }
     }
     #endregion
 }

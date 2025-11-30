@@ -124,7 +124,10 @@ public class Weapon : MonoBehaviour
 
         // Visual flash to indicate attack
         var effectColor = isStrongAttack ? GameConstants.ORANGE_COLOR : attackColor;
-        AnimationHelper.ShowHitFlash(weaponRenderer, effectColor, windowSeconds);
+        if (weaponRenderer != null)
+            AnimationHelper.ShowHitFlash(weaponRenderer, effectColor, windowSeconds);
+        else
+            DebugHelper.LogWarning("[Weapon] weaponRenderer missing — skipping attack flash.");
 
         // Weapon should be visible & colliding while on duty
         SetVisualState(true);
@@ -221,14 +224,21 @@ public class Weapon : MonoBehaviour
         hitList.Add(targetEntity);
 
         // Notify
-        EventBus.Instance.Publish(new DamageApplied(
-            attacker: ownerEntity,
-            target:   targetEntity,
-            amount:   dmg,
-            killingBlow: killingBlow,
-            isStrong: currentAttackIsStrong,
-            onBeat:   false // PlayerAttackController knows onBeat; emit there in AttackResolved
-        ));
+        if (EventBus.Instance != null)
+        {
+            EventBus.Instance.Publish(new DamageApplied(
+                attacker: ownerEntity,
+                target:   targetEntity,
+                amount:   dmg,
+                killingBlow: killingBlow,
+                isStrong: currentAttackIsStrong,
+                onBeat:   false // PlayerAttackController knows onBeat; emit there in AttackResolved
+            ));
+        }
+        else
+        {
+            DebugHelper.LogWarning("[Weapon] EventBus missing — DamageApplied event skipped.");
+        }
 
         DebugHelper.LogCombat(() => $"[Weapon] Hit {targetEntity.name} for {dmg} ({before:F1}->{targetEntity.Health:F1})");
     }

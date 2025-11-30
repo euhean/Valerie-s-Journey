@@ -34,6 +34,20 @@ public class PlayerAnimator : MonoBehaviour
     {
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
+
+        if (animator == null)
+        {
+            DebugHelper.LogWarning("[PlayerAnimator] Missing Animator component. Disabling animator logic.");
+            enabled = false;
+            return;
+        }
+
+        if (rb == null)
+        {
+            DebugHelper.LogWarning("[PlayerAnimator] Missing Rigidbody2D component. Disabling animator logic.");
+            enabled = false;
+            return;
+        }
     }
 
     private void Start()
@@ -60,6 +74,9 @@ public class PlayerAnimator : MonoBehaviour
 
     private void HandleAttackInput(double dspTime)
     {
+        if (!isActiveAndEnabled || animator == null || rb == null)
+            return;
+
         // Restart routine to allow "mashing" to reset the buffer window if desired
         if (isAttacking) StopCoroutine(nameof(AttackRoutine));
         StartCoroutine(nameof(AttackRoutine));
@@ -67,6 +84,12 @@ public class PlayerAnimator : MonoBehaviour
 
     private IEnumerator AttackRoutine()
     {
+        if (rb == null)
+        {
+            DebugHelper.LogWarning("[PlayerAnimator] AttackRoutine aborted — Rigidbody2D missing.");
+            yield break;
+        }
+
         isAttacking = true;
 
         // Determine direction for attack
@@ -133,10 +156,11 @@ public class PlayerAnimator : MonoBehaviour
 
     private void PlayState(string newState)
     {
-        if (newState != currentState)
-        {
-            animator.Play(newState);
-            currentState = newState;
-        }
+        if (animator == null) return;
+        if (string.IsNullOrEmpty(newState)) return;
+        if (newState == currentState) return;
+
+        animator.Play(newState);
+        currentState = newState;
     }
 }

@@ -115,7 +115,11 @@ public class LevelManager : BaseManager
 
     private void OnPlayerDied(PlayerDiedEvent e)
     {
-        DebugHelper.LogManager($"Player {e.player.name} died - showing death screen via ComponentHelper");
+        if (e?.player != null)
+            DebugHelper.LogManager($"Player {e.player.name} died - showing death screen via ComponentHelper");
+        else
+            DebugHelper.LogWarning("LevelManager received PlayerDiedEvent without player reference.");
+
         gameManager?.HandlePlayerDeath();
         ShowDeathScreen();
     }
