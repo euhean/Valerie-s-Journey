@@ -54,6 +54,11 @@ public class PlayerAttackController : MonoBehaviour
         
         if (inputManager == null) DebugHelper.LogError("[PAC] InputManager not found.");
         if (timeManager == null)  DebugHelper.LogError("[PAC] TimeManager not found.");
+
+        if (beatConfig != null)
+        {
+             DebugHelper.LogManager($"[PAC] BeatConfig loaded. ResetInactivity: {beatConfig.resetOnInactivityBeats}, ResetOffBeat: {beatConfig.resetOnOffBeat}");
+        }
     }
 
     private void OnEnable()
@@ -76,9 +81,11 @@ public class PlayerAttackController : MonoBehaviour
         if (beatConfig != null && beatConfig.resetOnInactivityBeats > 0)
         {
             beatsSinceLastOnBeatPress++;
-            if (beatsSinceLastOnBeatPress >= beatConfig.resetOnInactivityBeats)
+            // Use > instead of >= to be more forgiving of race conditions (late hits)
+            // This effectively adds 1 beat of grace period.
+            if (beatsSinceLastOnBeatPress > beatConfig.resetOnInactivityBeats)
             {
-                ResetCombo("inactivity");
+                ResetCombo($"inactivity: {beatsSinceLastOnBeatPress} > {beatConfig.resetOnInactivityBeats}");
             }
         }
     }
@@ -104,7 +111,9 @@ public class PlayerAttackController : MonoBehaviour
         {
             beatsSinceLastOnBeatPress = 0;
             onBeatStreak++;
-            if (combatConfig != null && onBeatStreak >= combatConfig.comboStreak)
+            
+            int requiredStreak = combatConfig != null ? combatConfig.comboStreak : GameConstants.COMBO_STREAK_FOR_STRONG;
+            if (onBeatStreak >= requiredStreak)
             {
                 isStrong = true;
                 // Reset streak after strong resolves (done at the end of the window)
@@ -121,7 +130,7 @@ public class PlayerAttackController : MonoBehaviour
     {
         attackInProgress = true;
 
-        float windowSec = combatConfig != null ? combatConfig.attackWindow : 0.20f;
+        float windowSec = combatConfig != null ? combatConfig.attackWindow : GameConstants.ATTACK_VISUAL_DURATION;
 
         // Lock aim for strong only during the window
         if (isStrong)
@@ -129,6 +138,9 @@ public class PlayerAttackController : MonoBehaviour
             isAimLocked = true;
             if (strongAimLockCoro != null) StopCoroutine(strongAimLockCoro);
             strongAimLockCoro = StartCoroutine(UnlockAimAfter(windowSec));
+            
+            // Enlarge sprite for strong attack
+            StartCoroutine(EnlargeSpriteRoutine(windowSec));
         }
 
         // Tell weapon to open its active window; it will collect hits.
@@ -156,10 +168,24 @@ public class PlayerAttackController : MonoBehaviour
         );
         EventBus.Instance.Publish(evt);
 
-        // Reset strong combo after a strong attack fires
-        if (isStrong) onBeatStreak = 0;
+        if (isStrong) ResetCombo("strong attack complete");
 
         attackInProgress = false;
+    }
+
+    private IEnumerator EnlargeSpriteRoutine(float duration)
+    {
+        Transform visualTransform = transform; // Assuming script is on the root with the sprite
+        Vector3 originalScale = visualTransform.localScale;
+        Vector3 targetScale = originalScale * 2f;
+
+        // Scale Up
+        visualTransform.localScale = targetScale;
+
+        yield return new WaitForSeconds(duration);
+
+        // Scale Down
+        visualTransform.localScale = originalScale;
     }
 
     private IEnumerator UnlockAimAfter(float seconds)

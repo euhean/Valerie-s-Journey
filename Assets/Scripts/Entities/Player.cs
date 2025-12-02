@@ -74,13 +74,14 @@ public class Player : Entity
 
         base.TakeDamage(amount);
 
-        // Damage feedback: flash sprite and reset combo
+        // Damage feedback: flash sprite
         if (IsAlive && SpriteRenderer != null)
             AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, 
                                          GameConstants.PLAYER_DAMAGE_FLASH_DURATION, this);
 
-        if (attackController != null)
-            attackController.ResetCombo("took damage");
+        // Combo is NO LONGER reset on damage (User Request)
+        // if (attackController != null)
+        //    attackController.ResetCombo("took damage");
     }
 
     /// <summary>

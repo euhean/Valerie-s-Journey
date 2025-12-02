@@ -21,10 +21,10 @@ public class Enemy : Entity
     #region Inspector: Patrol / Combat
     [Header("Patrol / Combat")]
     public Player playerTarget;
-    public float patrolSpeed   = 1.5f;
+    public float patrolSpeed   = 0.75f;
     public float attackRange   = 0.6f;
     public float attackDamage  = 8f;
-    public float attackCooldown = 1.0f;
+    public float attackCooldown = 2.5f;
     private Coroutine patrolCoroutine;
     private float lastAttackTime = -999f;
     #endregion

@@ -107,24 +107,43 @@ public class TimeManager : BaseManager
     {
         running = true;
         beatIndex = 0;
-        lastBeatDSP = AudioSettings.dspTime;
+        
         double dspNow = AudioSettings.dspTime;
         double secondsPerBeat = 60.0 / Math.Max(1f, bpm);
-        nextBeatDSP = dspNow + secondsPerBeat * 0.1; // small offset to avoid immediately firing
+        
+        // Start slightly in the future to allow scheduling
+        nextBeatDSP = dspNow + 0.5; 
+        lastBeatDSP = nextBeatDSP - secondsPerBeat;
+
+        // Ensure clip is assigned
+        if (audioSource != null && beatSound != null)
+        {
+            audioSource.clip = beatSound;
+        }
+
+        bool isAudioScheduled = false;
 
         while (running)
         {
             dspNow = AudioSettings.dspTime;
+            secondsPerBeat = 60.0 / Math.Max(1f, bpm);
 
-            // Catch-up loop (in case of hiccups)
-            while (dspNow + 0.0001 >= nextBeatDSP)
+            // 1. Schedule Audio Ahead (lookahead 0.1s)
+            if (!isAudioScheduled && dspNow + 0.1 >= nextBeatDSP)
             {
-                // Fire beat
+                if (audioSource != null && beatSound != null)
+                {
+                    if (audioSource.clip != beatSound) audioSource.clip = beatSound;
+                    audioSource.PlayScheduled(nextBeatDSP);
+                }
+                isAudioScheduled = true;
+            }
+
+            // 2. Fire Logic (Catch-up loop)
+            while (dspNow >= nextBeatDSP)
+            {
+                // Fire beat logic
                 lastBeatDSP = nextBeatDSP;
-                
-                // Play beat sound if available
-                if (beatSound != null && audioSource != null)
-                    audioSource.PlayOneShot(beatSound);
                 
                 try
                 {
@@ -136,10 +155,8 @@ public class TimeManager : BaseManager
                 }
 
                 beatIndex++;
-                // schedule next
-                secondsPerBeat = 60.0 / Math.Max(1f, bpm);
                 nextBeatDSP += secondsPerBeat;
-                dspNow = AudioSettings.dspTime;
+                isAudioScheduled = false; // Reset for the new nextBeatDSP
             }
 
             yield return null;
@@ -156,7 +173,17 @@ public class TimeManager : BaseManager
     {
         if (lastBeatDSP < 0) return false;
         float tol = beatConfig != null ? Mathf.Abs(beatConfig.onBeatWindowSec) : 0.07f;
-        return Math.Abs(dspTime - lastBeatDSP) <= tol;
+        
+        // Check distance to LAST beat
+        double distToLast = Math.Abs(dspTime - lastBeatDSP);
+        
+        // Check distance to NEXT beat (predictive)
+        double secondsPerBeat = 60.0 / Math.Max(1f, bpm);
+        double nextBeat = lastBeatDSP + secondsPerBeat;
+        double distToNext = Math.Abs(dspTime - nextBeat);
+
+        // If we are closer to the next beat than the last one, treat it as hitting the next beat early
+        return distToLast <= tol || distToNext <= tol;
     }
 
     /// <summary>

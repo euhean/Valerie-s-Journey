@@ -175,7 +175,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbc3974e55dbea37ca78810bbbce769c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 40
+  maxHealth: 200
   aliveColor: {r: 1, g: 1, b: 1, a: 1}
   deadColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   hitFlashColor: {r: 1, g: 0.8, b: 0, a: 1}
@@ -183,5 +183,5 @@ MonoBehaviour:
   playerTarget: {fileID: 0}
   patrolSpeed: 1.5
   attackRange: 0.6
-  attackDamage: 8
+  attackDamage: 0
   attackCooldown: 1

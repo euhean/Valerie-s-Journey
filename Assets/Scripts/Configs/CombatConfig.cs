@@ -13,5 +13,5 @@ public class CombatConfig : ScriptableObject
     public int comboStreak = 4;
     
     [Header("Attack Window (seconds)")]
-    public float attackWindow = 0.20f;
+    public float attackWindow = 0.25f;
 }

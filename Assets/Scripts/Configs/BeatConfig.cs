@@ -11,6 +11,6 @@ public class BeatConfig : ScriptableObject
     [Tooltip("Reset combo if an attack is done off-beat")]
     public bool resetOnOffBeat = true;
 
-    [Tooltip("Reset combo after this many beats without on-beat presses (0 = never)")]
-    public int resetOnInactivityBeats = 1;
+    [Tooltip("Reset combo after this many beats without on-beat presses (0 = never). Set to 2 to allow 'hit every beat' without race conditions.")]
+    public int resetOnInactivityBeats = 2;
 }

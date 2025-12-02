@@ -60,6 +60,9 @@ public class BeatVisualizer : MonoBehaviour
             inputManager.OnBasicPressedDSP -= HandleInput;
     }
 
+    private double lastHitBeatDSP = -1.0;
+    private bool lastHitWasOnBeat = false;
+
     /// <summary>
     /// Se ejecuta cada vez que hay un beat en la música
     /// </summary>
@@ -67,17 +70,23 @@ public class BeatVisualizer : MonoBehaviour
     {
         if (isPaused || !isInitialized) return;
 
-        // Si no presionaste nada en el beat anterior, la barra actual se pone ROJA (fallo)
-        if (!inputProcessedThisFrame)
-        {
-            FlashBar(bars[currentBar], offBeatColor);
-            Debug.Log($"✗ FALLO: No presionaste en el beat - Barra[{currentBar}] en ROJO");
-        }
-
         // Pasar a la siguiente barra
         currentBar = (currentBar + 1) % bars.Length;
 
-        // La nueva barra se pone AMARILLA
+        // Check if we already hit this beat successfully
+        // TimeManager.LastBeatDSP is the beat that just fired.
+        double thisBeatDSP = timeManager.LastBeatDSP;
+
+        // If we successfully hit this beat recently, don't overwrite with Yellow
+        if (Mathf.Abs((float)(thisBeatDSP - lastHitBeatDSP)) < 0.1f && lastHitWasOnBeat)
+        {
+            // Player already hit this beat, keep it Green.
+            // Reset flag for next beat
+            inputProcessedThisFrame = false;
+            return;
+        }
+
+        // La nueva barra se pone AMARILLA (indicando "AHORA!")
         FlashBar(bars[currentBar], beatColor);
 
         // Resetea el flag de input para permitir nuevo input en el siguiente beat
@@ -100,15 +109,50 @@ public class BeatVisualizer : MonoBehaviour
             return;
         }
 
+        // Calculate target beat (Last or Next) to determine which bar to flash
+        double lastBeat = timeManager.LastBeatDSP;
+        double secondsPerBeat = 60.0 / System.Math.Max(1f, timeManager.bpm);
+        double nextBeat = lastBeat + secondsPerBeat;
+
+        double distToLast = System.Math.Abs(dspTime - lastBeat);
+        double distToNext = System.Math.Abs(dspTime - nextBeat);
+
+        int targetBarIndex = currentBar;
+        double targetBeatDSP = lastBeat;
+
+        if (distToNext < distToLast)
+        {
+            // Closer to NEXT beat (Early hit) -> Target the next bar
+            targetBarIndex = (currentBar + 1) % bars.Length;
+            targetBeatDSP = nextBeat;
+        }
+        else
+        {
+            // Closer to LAST beat (Late hit) -> Target the current bar
+            targetBarIndex = currentBar;
+            targetBeatDSP = lastBeat;
+        }
+
         // Verificar si el input está dentro de la ventana "on beat"
         bool onBeat = timeManager.IsOnBeat(dspTime);
+
+        // Record this hit if successful
+        if (onBeat)
+        {
+            lastHitBeatDSP = targetBeatDSP;
+            lastHitWasOnBeat = true;
+        }
+        else
+        {
+            lastHitWasOnBeat = false;
+        }
 
         // Elegir color según si fue on-beat u off-beat
         Color colorToFlash = onBeat ? onBeatColor : offBeatColor;
         string resultText = onBeat ? "✓ ACIERTO (ON-BEAT)" : "✗ FALLO (OFF-BEAT)";
 
-        // Cambiar la barra actual al color del resultado
-        FlashBar(bars[currentBar], colorToFlash);
+        // Cambiar la barra TARGET al color del resultado
+        FlashBar(bars[targetBarIndex], colorToFlash);
 
         // Marcar que ya procesamos un input en este beat
         inputProcessedThisFrame = true;
