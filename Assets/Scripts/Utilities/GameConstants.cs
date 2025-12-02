@@ -30,11 +30,11 @@ public static class GameConstants
 
     // Player movement constants
     public const float PLAYER_SPEED = 8f;
-    public const float PLAYER_ACCELERATION = 15f;
-    public const float PLAYER_DECELERATION = 12f;
-    public const float PLAYER_REVERSE_BRAKE = 20f;
-    public const float PLAYER_DEADZONE_ENTER = 0.1f;
-    public const float PLAYER_DEADZONE_EXIT = 0.15f;
+    public const float PLAYER_ACCELERATION = 40f; // Was 15 - Snappier start
+    public const float PLAYER_DECELERATION = 40f; // Was 12 - Snappier stop (less ice)
+    public const float PLAYER_REVERSE_BRAKE = 60f; // Was 20 - Instant turn-around
+    public const float PLAYER_DEADZONE_ENTER = 0.2f; // Was 0.1 - Safer against drift
+    public const float PLAYER_DEADZONE_EXIT = 0.25f; // Was 0.15
     public const float PLAYER_STOP_THRESHOLD = 0.1f;
 
     // Text display settings

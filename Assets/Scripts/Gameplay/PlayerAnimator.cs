@@ -4,163 +4,114 @@ using System.Collections;
 [RequireComponent(typeof(Animator), typeof(Rigidbody2D))]
 public class PlayerAnimator : MonoBehaviour
 {
-    [Header("Movement States (Animator State Names)")]
-    [SerializeField] private string idleState = "Player_idle_";
-    [SerializeField] private string moveRightState = "Player_right_";
-    [SerializeField] private string moveLeftState = "Player_left_";
-    [SerializeField] private string moveUpState = "Player_up_";
-    [SerializeField] private string moveDownState = "Player_down_";
-
-    [Header("Attack States (Animator State Names)")]
-    [SerializeField] private string attackRightState = "Player_hit_right"; // Matches file list convention roughly
-    [SerializeField] private string attackLeftState = "Player_hit_left_";
-    [SerializeField] private string attackUpState = "Player_hit_up_";
-    [SerializeField] private string attackDownState = "Player_hit_down_";
-
     [Header("Settings")]
-    [SerializeField] private float velocityThreshold = 0.1f;
-    [Tooltip("How long the attack animation overrides movement (Frame Buffer)")]
-    [SerializeField] private float attackDuration = 0.25f; 
+    [SerializeField] private float moveThreshold = 0.1f;
+    [SerializeField] private float attackDuration = 0.25f;
 
-    private Animator animator;
-    private Rigidbody2D rb;
-    private InputManager inputManager;
-    
-    private string currentState;
-    private bool isAttacking;
-    private Vector2 lastDirection = Vector2.down; // Default facing
+    [Header("Idle States")]
+    [SerializeField] private string idleState = "Player_idle_"; // If you have directional idles, we can expand this
+
+    [Header("Movement States")]
+    [SerializeField] private string moveRight = "Player_right_";
+    [SerializeField] private string moveLeft = "Player_left_";
+    [SerializeField] private string moveUp = "Player_up_";
+    [SerializeField] private string moveDown = "Player_down_";
+
+    [Header("Attack States")]
+    [SerializeField] private string attackRight = "Player_hit_right";
+    [SerializeField] private string attackLeft = "Player_hit_left_";
+    [SerializeField] private string attackUp = "Player_hit_up_";
+    [SerializeField] private string attackDown = "Player_hit_down_";
+
+    private Animator _animator;
+    private Rigidbody2D _rb;
+    private string _currentState;
+    private bool _isAttacking;
+    private Vector2 _facingDir = Vector2.down; // Default facing
 
     private void Awake()
     {
-        animator = GetComponent<Animator>();
-        rb = GetComponent<Rigidbody2D>();
-
-        if (animator == null)
-        {
-            DebugHelper.LogWarning("[PlayerAnimator] Missing Animator component. Disabling animator logic.");
-            enabled = false;
-            return;
-        }
-
-        if (rb == null)
-        {
-            DebugHelper.LogWarning("[PlayerAnimator] Missing Rigidbody2D component. Disabling animator logic.");
-            enabled = false;
-            return;
-        }
+        _animator = GetComponent<Animator>();
+        _rb = GetComponent<Rigidbody2D>();
     }
 
     private void Start()
     {
-        // Subscribe to input via GameManager
-        inputManager = GameManager.Instance?.inputManager;
-        if (inputManager != null)
-        {
-            inputManager.OnBasicPressedDSP += HandleAttackInput;
-        }
-        else
-        {
-            DebugHelper.LogWarning("[PlayerAnimator] InputManager not found in GameManager.");
-        }
+        var input = GameManager.Instance?.inputManager;
+        if (input != null) input.OnBasicPressedDSP += OnAttack;
     }
 
     private void OnDestroy()
     {
-        if (inputManager != null)
-        {
-            inputManager.OnBasicPressedDSP -= HandleAttackInput;
-        }
-    }
-
-    private void HandleAttackInput(double dspTime)
-    {
-        if (!isActiveAndEnabled || animator == null || rb == null)
-            return;
-
-        // Restart routine to allow "mashing" to reset the buffer window if desired
-        if (isAttacking) StopCoroutine(nameof(AttackRoutine));
-        StartCoroutine(nameof(AttackRoutine));
-    }
-
-    private IEnumerator AttackRoutine()
-    {
-        if (rb == null)
-        {
-            DebugHelper.LogWarning("[PlayerAnimator] AttackRoutine aborted — Rigidbody2D missing.");
-            yield break;
-        }
-
-        isAttacking = true;
-
-        // Determine direction for attack
-        // If moving, use current velocity. If idle, use lastDirection.
-        Vector2 velocity = rb.linearVelocity;
-        Vector2 dir = velocity.sqrMagnitude > velocityThreshold * velocityThreshold 
-            ? velocity.normalized 
-            : lastDirection;
-
-        // Determine state based on direction
-        string attackState = attackDownState;
-        
-        // Priority: X axis > Y axis (matches movement logic)
-        if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
-        {
-            attackState = dir.x > 0 ? attackRightState : attackLeftState;
-        }
-        else
-        {
-            attackState = dir.y > 0 ? attackUpState : attackDownState;
-        }
-
-        PlayState(attackState);
-
-        yield return new WaitForSeconds(attackDuration);
-
-        isAttacking = false;
-        // Next Update() will resume movement animation
+        var input = GameManager.Instance?.inputManager;
+        if (input != null) input.OnBasicPressedDSP -= OnAttack;
     }
 
     private void Update()
     {
-        if (animator == null || rb == null) return;
+        // 1. If attacking, lock movement animations
+        if (_isAttacking) return;
 
-        Vector2 velocity = rb.linearVelocity;
+        // 2. Calculate Physics
+        Vector2 vel = _rb.linearVelocity;
+        bool isMoving = vel.sqrMagnitude > moveThreshold * moveThreshold;
 
-        // Always track last direction when moving, so we know where to attack when stopped
-        if (velocity.sqrMagnitude > velocityThreshold * velocityThreshold)
+        // 3. Update Facing Direction (Isaac Style: Cardinal Priority)
+        if (isMoving)
         {
-            lastDirection = velocity.normalized;
+            if (Mathf.Abs(vel.x) > Mathf.Abs(vel.y))
+                _facingDir = vel.x > 0 ? Vector2.right : Vector2.left;
+            else
+                _facingDir = vel.y > 0 ? Vector2.up : Vector2.down;
         }
 
-        // If attacking, do not update movement state (lock animation)
-        if (isAttacking) return;
+        // 4. Determine State
+        string newState = DetermineState(isMoving);
 
-        string newState = currentState;
-
-        // Movement Logic
-        if (velocity.sqrMagnitude < velocityThreshold * velocityThreshold)
-        {
-            newState = idleState;
-        }
-        else if (Mathf.Abs(velocity.x) > velocityThreshold) // X priority
-        {
-            newState = velocity.x > 0 ? moveRightState : moveLeftState;
-        }
-        else
-        {
-            newState = velocity.y > 0 ? moveUpState : moveDownState;
-        }
-
-        PlayState(newState);
+        // 5. Apply State (The "Transition Logic")
+        PlayAnimation(newState);
     }
 
-    private void PlayState(string newState)
+    private string DetermineState(bool isMoving)
     {
-        if (animator == null) return;
-        if (string.IsNullOrEmpty(newState)) return;
-        if (newState == currentState) return;
+        if (!isMoving) return idleState;
 
-        animator.Play(newState);
-        currentState = newState;
+        if (_facingDir == Vector2.right) return moveRight;
+        if (_facingDir == Vector2.left) return moveLeft;
+        if (_facingDir == Vector2.up) return moveUp;
+        return moveDown;
+    }
+
+    private void OnAttack(double dspTime)
+    {
+        if (_isAttacking) return;
+        StartCoroutine(AttackRoutine());
+    }
+
+    private IEnumerator AttackRoutine()
+    {
+        _isAttacking = true;
+
+        // Pick attack animation based on current facing direction
+        string attackState = attackDown;
+        if (_facingDir == Vector2.right) attackState = attackRight;
+        else if (_facingDir == Vector2.left) attackState = attackLeft;
+        else if (_facingDir == Vector2.up) attackState = attackUp;
+
+        PlayAnimation(attackState);
+
+        yield return new WaitForSeconds(attackDuration);
+
+        _isAttacking = false;
+        // Next Update() will automatically switch back to Idle/Move
+    }
+
+    private void PlayAnimation(string newState)
+    {
+        // Optimization: Don't tell Unity to play the same animation again
+        if (_currentState == newState) return;
+
+        _animator.Play(newState);
+        _currentState = newState;
     }
 }

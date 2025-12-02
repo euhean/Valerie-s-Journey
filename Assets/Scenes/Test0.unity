@@ -570,6 +570,10 @@ PrefabInstance:
       propertyPath: inputManager
       value: 
       objectReference: {fileID: 396868540}
+    - target: {fileID: 3425077910862667505, guid: b41b133a37409ab748487974cb6e96ab, type: 3}
+      propertyPath: m_SpriteSortPoint
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 3940252851822536599, guid: b41b133a37409ab748487974cb6e96ab, type: 3}
       propertyPath: m_LocalPosition.x
       value: -0.222
@@ -608,6 +612,22 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3940252851822536599, guid: b41b133a37409ab748487974cb6e96ab, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4819521069394016361, guid: b41b133a37409ab748487974cb6e96ab, type: 3}
+      propertyPath: m_Size.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4819521069394016361, guid: b41b133a37409ab748487974cb6e96ab, type: 3}
+      propertyPath: m_Size.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4819521069394016361, guid: b41b133a37409ab748487974cb6e96ab, type: 3}
+      propertyPath: m_SpriteSortPoint
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4819521069394016361, guid: b41b133a37409ab748487974cb6e96ab, type: 3}
+      propertyPath: m_WasSpriteAssigned
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6152253653713577257, guid: b41b133a37409ab748487974cb6e96ab, type: 3}

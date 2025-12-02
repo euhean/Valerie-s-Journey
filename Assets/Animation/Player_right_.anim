@@ -32,17 +32,17 @@ AnimationClip:
       value: {fileID: 21300000, guid: 853ddac4eaf17e9cc89b6f98baf923e1, type: 3}
     - time: 0.23333333
       value: {fileID: 21300000, guid: 628b72c336acccdcf8238c1fa942d8b7, type: 3}
-    - time: 0.26666668
+    - time: 0.25
       value: {fileID: 21300000, guid: 5454a6a79b70e51d79900b16f485b037, type: 3}
-    - time: 0.31666666
+    - time: 0.3
       value: {fileID: 21300000, guid: 60b736b5c1cd12a7eba983b96f068d2b, type: 3}
-    - time: 0.36666667
+    - time: 0.35
       value: {fileID: 21300000, guid: 0e68322f48566968280f629d0c4e888a, type: 3}
-    - time: 0.41666666
+    - time: 0.4
       value: {fileID: 21300000, guid: 7b3627648b49df375aad3bd977382f27, type: 3}
-    - time: 0.45
+    - time: 0.43333334
       value: {fileID: 21300000, guid: 5493847a0412f883680b8eb377567edd, type: 3}
-    - time: 0.5
+    - time: 0.48333332
       value: {fileID: 21300000, guid: f9de38b3e8e474a708ba354002ab972e, type: 3}
     attribute: m_Sprite
     path: 
@@ -63,19 +63,19 @@ AnimationClip:
       value: {fileID: 21300000, guid: 7d070ab5a8ece41d886159877706a016, type: 3}
     - time: 0.21666667
       value: {fileID: 21300000, guid: 9428479337129ee90b5481e4c1d932c7, type: 3}
-    - time: 0.28333333
+    - time: 0.26666668
       value: {fileID: 21300000, guid: b1e38d1eae97de63289825ab9a829fad, type: 3}
-    - time: 0.31666666
+    - time: 0.3
       value: {fileID: 21300000, guid: b0df1faf699ee87acba7eb98287b11a9, type: 3}
-    - time: 0.36666667
+    - time: 0.35
       value: {fileID: 21300000, guid: e681d7fee4e9f6f358e68754fcc62c25, type: 3}
-    - time: 0.41666666
+    - time: 0.4
       value: {fileID: 21300000, guid: 190bb755e99c5a61987892097952cc1d, type: 3}
-    - time: 0.45
+    - time: 0.43333334
       value: {fileID: 21300000, guid: 708fbb957932a616cb3f5adb28995fd0, type: 3}
-    - time: 0.5
+    - time: 0.48333332
       value: {fileID: 21300000, guid: bf3280b869fde4bb097e0e927e258788, type: 3}
-    - time: 0.51666665
+    - time: 0.5
       value: {fileID: 0}
     attribute: m_Sprite
     path: vfx
@@ -138,7 +138,7 @@ AnimationClip:
     m_AdditiveReferencePoseClip: {fileID: 0}
     m_AdditiveReferencePoseTime: 0
     m_StartTime: 0
-    m_StopTime: 0.5333333
+    m_StopTime: 0.51666665
     m_OrientationOffsetY: 0
     m_Level: 0
     m_CycleOffset: 0
