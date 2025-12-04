@@ -92,6 +92,7 @@ public class Player : Entity
         if (!IsAlive) return;
 
         DebugHelper.LogState(() => $"Player {gameObject.name} died");
+        DebugHelper.LogManager($"[Player] Die() invoked for {gameObject.name} at t={Time.time:F2}");
         base.Die();
 
         // Disable interaction: turn off collider and physics

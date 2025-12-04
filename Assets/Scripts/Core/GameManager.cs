@@ -335,7 +335,8 @@ public class GameManager : MonoBehaviour
     {
         if (!managersStarted) return;
 
-        DebugHelper.LogManager("GameManager.HandlePlayerDeath(): stopping non-essential managers.");
+        var playerState = MainPlayer != null ? $"state={MainPlayer.CurrentState}, duty={MainPlayer.CurrentDutyState}" : "no player";
+        DebugHelper.LogManager($"GameManager.HandlePlayerDeath(): stopping non-essential managers ({playerState})");
 
         // Keep input + level alive for menu navigation while pausing everything else.
         timeManager?.StopRuntime();

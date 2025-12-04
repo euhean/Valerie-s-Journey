@@ -146,10 +146,10 @@ public class DialogManager : BaseManager
     private void EndDialogue()
     {
         UnsubscribeFromInput();
-        dialoguePanel.SetActive(false);
-        speakerText.text = "";
-        dialogueText.text = "";
-        portraitImage.gameObject.SetActive(false);
+        if (dialoguePanel != null) dialoguePanel.SetActive(false);
+        if (speakerText != null) speakerText.text = "";
+        if (dialogueText != null) dialogueText.text = "";
+        if (portraitImage != null) portraitImage.gameObject.SetActive(false);
         dialogueActive = false;
         currentNodeIndex = 0;
     }

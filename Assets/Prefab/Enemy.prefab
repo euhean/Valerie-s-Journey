@@ -181,7 +181,7 @@ MonoBehaviour:
   hitFlashColor: {r: 1, g: 0.8, b: 0, a: 1}
   hitFlashDuration: 0.2
   playerTarget: {fileID: 0}
-  patrolSpeed: 1.5
+  patrolSpeed: 0.75
   attackRange: 0.6
-  attackDamage: 0
-  attackCooldown: 1
+  attackDamage: 8
+  attackCooldown: 2.5

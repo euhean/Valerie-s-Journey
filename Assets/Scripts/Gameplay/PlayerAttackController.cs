@@ -23,6 +23,16 @@ public class PlayerAttackController : MonoBehaviour
     [Header("Cooldowns")]
     [Tooltip("Seconds between button presses being accepted (prevents button mashing spam)")]
     public float attackCooldown = 0.15f;
+
+    [Header("Attack Window Auto-Tune")]
+    [Tooltip("Derive attack window from BPM instead of a fixed CombatConfig value.")]
+    public bool scaleAttackWindowWithTempo = true;
+    [Tooltip("Smallest allowed window once scaling is applied.")]
+    public float minScaledWindow = 0.18f;
+    [Tooltip("Largest allowed window once scaling is applied.")]
+    public float maxScaledWindow = 0.28f;
+    [Tooltip("Extra seconds removed from the beat spacing to give the player time to re-aim.")]
+    public float reactionBuffer = 0.08f;
     #endregion
 
     #region Private State
@@ -33,6 +43,9 @@ public class PlayerAttackController : MonoBehaviour
     private int onBeatStreak = 0;
     private int beatsSinceLastOnBeatPress = 0;
     private Coroutine strongAimLockCoro;
+    private Vector2 lastAimDirection = Vector2.down;
+    private bool hasAimDirectionSample = false;
+    private const float AIM_DIR_THRESHOLD_SQR = GameConstants.WEAPON_AIM_THRESHOLD * GameConstants.WEAPON_AIM_THRESHOLD;
     #endregion
 
     #region Unity Lifecycle
@@ -130,7 +143,7 @@ public class PlayerAttackController : MonoBehaviour
     {
         attackInProgress = true;
 
-        float windowSec = combatConfig != null ? combatConfig.attackWindow : GameConstants.ATTACK_VISUAL_DURATION;
+        float windowSec = ResolveAttackWindowSeconds();
 
         // Lock aim for strong only during the window
         if (isStrong)
@@ -171,6 +184,30 @@ public class PlayerAttackController : MonoBehaviour
         if (isStrong) ResetCombo("strong attack complete");
 
         attackInProgress = false;
+    }
+
+    private float ResolveAttackWindowSeconds()
+    {
+        float fallback = combatConfig != null ? combatConfig.attackWindow : GameConstants.ATTACK_VISUAL_DURATION;
+        if (!scaleAttackWindowWithTempo || timeManager == null)
+        {
+            return fallback;
+        }
+
+        float bpm = Mathf.Max(1f, timeManager.bpm);
+        float secondsPerBeat = 60f / bpm;
+        float onBeatTol = beatConfig != null ? Mathf.Abs(beatConfig.onBeatWindowSec) : 0.07f;
+        float buffer = Mathf.Max(0f, reactionBuffer);
+
+        float computed = secondsPerBeat - (2f * onBeatTol) - buffer;
+        if (!float.IsFinite(computed))
+        {
+            return fallback;
+        }
+
+        float min = Mathf.Max(0.05f, minScaledWindow);
+        float max = Mathf.Max(min, maxScaledWindow);
+        return Mathf.Clamp(computed, min, max);
     }
 
     private IEnumerator EnlargeSpriteRoutine(float duration)
@@ -225,6 +262,29 @@ public class PlayerAttackController : MonoBehaviour
         if (onBeatStreak != 0) DebugHelper.LogCombat($"[PAC] Combo reset ({reason}).");
         onBeatStreak = 0;
         beatsSinceLastOnBeatPress = 0;
+    }
+
+    /// <summary>
+    /// Stores the latest aim direction so other systems can align visuals to weapon aim.
+    /// </summary>
+    public void RegisterAimDirection(Vector2 aimDir)
+    {
+        if (aimDir.sqrMagnitude < AIM_DIR_THRESHOLD_SQR)
+        {
+            return;
+        }
+
+        lastAimDirection = aimDir.normalized;
+        hasAimDirectionSample = true;
+    }
+
+    /// <summary>
+    /// Provides the cached aim direction, if the player has aimed at least once.
+    /// </summary>
+    public bool TryGetAimDirection(out Vector2 aimDir)
+    {
+        aimDir = lastAimDirection;
+        return hasAimDirectionSample;
     }
     #endregion
 }

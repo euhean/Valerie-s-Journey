@@ -95,12 +95,14 @@ public class PlayerMover2D : MonoBehaviour
 
         // ----- AIM FORWARDING -----
         // Skip aim updates if strong attack is locking aim
-        if (weapon)
+        Vector2 aim = inputManager.Aim; // for KB+Mouse this should be set by InputManager as world dir
+        bool aimLocked = attackController && attackController.IsAimLocked();
+
+        if (!aimLocked)
         {
-            bool aimLocked = attackController && attackController.IsAimLocked();
-            if (!aimLocked)
+            attackController?.RegisterAimDirection(aim);
+            if (weapon)
             {
-                Vector2 aim = inputManager.Aim; // for KB+Mouse this should be set by InputManager as world dir
                 weapon.UpdateAiming(aim);
             }
         }

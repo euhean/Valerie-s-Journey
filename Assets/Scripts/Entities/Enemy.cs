@@ -182,6 +182,7 @@ public class Enemy : Entity
     private void TryAttack()
     {
         if (playerTarget == null || !playerTarget.IsAlive) return;
+
         if (Time.time - lastAttackTime < attackCooldown) return;
 
         lastAttackTime = Time.time;

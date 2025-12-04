@@ -23,6 +23,9 @@ public class PlayerAnimator : MonoBehaviour
     [SerializeField] private string attackUp = "Player_hit_up_";
     [SerializeField] private string attackDown = "Player_hit_down_";
 
+    [Header("References")]
+    [SerializeField] private PlayerAttackController attackController;
+
     private Animator _animator;
     private Rigidbody2D _rb;
     private string _currentState;
@@ -33,6 +36,7 @@ public class PlayerAnimator : MonoBehaviour
     {
         _animator = GetComponent<Animator>();
         _rb = GetComponent<Rigidbody2D>();
+        attackController ??= GetComponent<PlayerAttackController>();
     }
 
     private void Start()
@@ -82,6 +86,24 @@ public class PlayerAnimator : MonoBehaviour
         return moveDown;
     }
 
+    private Vector2 ResolveAttackDirection()
+    {
+        if (attackController != null && attackController.TryGetAimDirection(out var aimDir))
+        {
+            return aimDir;
+        }
+
+        return _facingDir;
+    }
+
+    private string DetermineAttackState(Vector2 attackDir)
+    {
+        if (Mathf.Abs(attackDir.x) > Mathf.Abs(attackDir.y))
+            return attackDir.x >= 0f ? attackRight : attackLeft;
+
+        return attackDir.y >= 0f ? attackUp : attackDown;
+    }
+
     private void OnAttack(double dspTime)
     {
         if (_isAttacking) return;
@@ -92,11 +114,8 @@ public class PlayerAnimator : MonoBehaviour
     {
         _isAttacking = true;
 
-        // Pick attack animation based on current facing direction
-        string attackState = attackDown;
-        if (_facingDir == Vector2.right) attackState = attackRight;
-        else if (_facingDir == Vector2.left) attackState = attackLeft;
-        else if (_facingDir == Vector2.up) attackState = attackUp;
+        Vector2 attackDir = ResolveAttackDirection();
+        string attackState = DetermineAttackState(attackDir);
 
         PlayAnimation(attackState);
 

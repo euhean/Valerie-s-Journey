@@ -205,7 +205,13 @@ public class LevelManager : BaseManager
     #region Death Screen (delegates to ComponentHelper)
     private void ShowDeathScreen()
     {
-        if (deathScreenCanvas != null) return; // Already showing
+        if (deathScreenCanvas != null)
+        {
+            DebugHelper.LogManager("[LevelManager] ShowDeathScreen called but canvas already exists (ignoring)");
+            return; // Already showing
+        }
+
+        DebugHelper.LogManager("[LevelManager] ShowDeathScreen invoked - constructing overlay UI");
 
         // Use ComponentHelper to create the UI (your helper defines these exact APIs)
         GameObject canvasGO = ComponentHelper.CreateFullScreenCanvas("DeathScreenCanvas");

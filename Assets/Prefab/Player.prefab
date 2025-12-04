@@ -68,17 +68,17 @@ BoxCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: -0.11, y: -0.03}
+  m_Offset: {x: -0.42567223, y: -0.0043456554}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 1, y: 0.5}
-    oldSize: {x: 0.3125, y: 0.28125}
+    oldSize: {x: 0.84375, y: 0.75}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.43236688, y: 0.5515192}
+  m_Size: {x: 0.6998646, y: 0.6028279}
   m_EdgeRadius: 0
 --- !u!212 &5041936884857609091
 SpriteRenderer:
@@ -125,7 +125,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 3
   m_Sprite: {fileID: 9186100028781630357, guid: 98758c1b6d055224797a92161a69ae18, type: 3}
-  m_Color: {r: 0.60784316, g: 0.9716981, b: 0.36862746, a: 1}
+  m_Color: {r: 0, g: 0, b: 0, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -237,7 +237,7 @@ SpriteRenderer:
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 0.5, y: 0.5}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 0
@@ -349,7 +349,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1.6, y: 1.6}
+    oldSize: {x: 0.07, y: 0.07}
     newSize: {x: 1.6, y: 1.6}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -401,7 +401,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: 8b936c9c9e151671ba97edae94c0b05f, type: 3}
+  m_Sprite: {fileID: -1759404196118924316, guid: 0072b1044aca1a0949f7f2174ff20914, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -457,6 +457,7 @@ MonoBehaviour:
   attackLeft: Player_hit_left_
   attackUp: Player_hit_up_
   attackDown: Player_hit_down_
+  attackController: {fileID: 0}
 --- !u!114 &6717792970252134719
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -492,6 +493,10 @@ MonoBehaviour:
   beatConfig: {fileID: 11400000, guid: 926b0846ec8dff6abb2ff39674660279, type: 2}
   weapon: {fileID: 1506757772643166578}
   attackCooldown: 0.15
+  scaleAttackWindowWithTempo: 1
+  minScaledWindow: 0.18
+  maxScaledWindow: 0.28
+  reactionBuffer: 0.08
 --- !u!114 &9198056393145864672
 MonoBehaviour:
   m_ObjectHideFlags: 0

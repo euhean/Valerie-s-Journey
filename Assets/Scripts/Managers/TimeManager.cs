@@ -140,7 +140,8 @@ public class TimeManager : BaseManager
             }
 
             // 2. Fire Logic (Catch-up loop)
-            while (dspNow >= nextBeatDSP)
+            // CHANGED: Replaced while loop with if + reset to prevent potential freezes if dspTime desyncs
+            if (dspNow >= nextBeatDSP)
             {
                 // Fire beat logic
                 lastBeatDSP = nextBeatDSP;
@@ -155,7 +156,19 @@ public class TimeManager : BaseManager
                 }
 
                 beatIndex++;
-                nextBeatDSP += secondsPerBeat;
+                
+                // If we are still behind after one beat, just reset to current time to avoid spiral of death
+                if (AudioSettings.dspTime >= nextBeatDSP + secondsPerBeat)
+                {
+                    nextBeatDSP = AudioSettings.dspTime + secondsPerBeat;
+                    // CRITICAL: Update lastBeatDSP so IsOnBeat() works correctly relative to the new timeline
+                    lastBeatDSP = nextBeatDSP - secondsPerBeat;
+                }
+                else
+                {
+                    nextBeatDSP += secondsPerBeat;
+                }
+                
                 isAudioScheduled = false; // Reset for the new nextBeatDSP
             }
 
