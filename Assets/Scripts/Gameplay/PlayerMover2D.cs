@@ -36,8 +36,8 @@ public class PlayerMover2D : MonoBehaviour
 
     private void Start()
     {
-        inputManager ??= GameManager.Instance?.inputManager;
-        if (!inputManager) DebugHelper.LogError("[PlayerMover2D] InputManager missing.");
+      if (!inputManager)
+        DebugHelper.LogError("[PlayerMover2D] InputManager not set. Did GameManager.RegisterPlayer run?");
     }
 
     private void FixedUpdate()

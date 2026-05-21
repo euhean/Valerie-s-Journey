@@ -9,11 +9,11 @@ using UnityEngine;
 public class PlayerAttackController : MonoBehaviour
 {
     #region Inspector
-    [Header("Manager Refs (assign or left to be fetched from GameManager)")]
+    [Header("Manager Refs")]
     public InputManager inputManager;
     public TimeManager timeManager;
 
-    [Header("Configs (ScriptableObjects)")]
+    [Header("Configs")]
     public CombatConfig combatConfig; // basicDamage, strongDamage, comboStreak, attackWindow
     public BeatConfig beatConfig;     // onBeat window, reset policies
 
@@ -27,6 +27,8 @@ public class PlayerAttackController : MonoBehaviour
     private bool isAimLocked = false;
     private bool attackInProgress = false;
 
+    private bool isPaused = false;
+
     private double lastPressDSP = -9999.0;
     private int onBeatStreak = 0;
     private int beatsSinceLastOnBeatPress = 0;
@@ -34,88 +36,84 @@ public class PlayerAttackController : MonoBehaviour
     #endregion
 
     #region Unity Lifecycle
-    private void Awake()
-    {
-        if (combatConfig == null) DebugHelper.LogWarning("[PAC] CombatConfig not assigned.");
-        if (beatConfig == null) DebugHelper.LogWarning("[PAC] BeatConfig not assigned.");
-        
-        // Acquire managers from GameManager if not set in inspector
-        // IMPORTANT: Must be in Awake (not Start) so they're available for OnEnable subscriptions
-        inputManager ??= GameManager.Instance?.inputManager;
-        timeManager  ??= GameManager.Instance?.timeManager;
-        
-        // Log errors if managers are still null after acquisition
-        if (GameManager.Instance == null)
-            DebugHelper.LogError("[PAC] GameManager.Instance is null during Awake!");
-        if (inputManager == null) 
-            DebugHelper.LogError("[PAC] InputManager not found. Attack input will not work.");
-        if (timeManager == null)  
-            DebugHelper.LogError("[PAC] TimeManager not found. Beat timing will not work.");
-    }
-
     private void OnEnable()
     {
-        if (inputManager != null) inputManager.OnBasicPressedDSP += HandleBasicPressedDSP;
-        if (timeManager  != null) timeManager.OnBeat += HandleBeat;
+        EventBus.Instance.Subscribe<BasicPressedEvent>(HandleBasicPressedDSP);
+        EventBus.Instance.Subscribe<BeatTickEvent>(HandleBeat);
+        EventBus.Instance.Subscribe<GameStateChangedEvent>(HandleStateChange);
     }
 
     private void OnDisable()
     {
+        EventBus.Instance.Unsubscribe<BasicPressedEvent>(HandleBasicPressedDSP);
+        EventBus.Instance.Unsubscribe<BeatTickEvent>(HandleBeat);
+        EventBus.Instance.Unsubscribe<GameStateChangedEvent>(HandleStateChange);
+    }
+
+    private void HandleStateChange(GameStateChangedEvent e)
+    {
+        isPaused = (e.to != GameManager.GameState.Gameplay);
+        if (isPaused) AbortAttack();
+    }
+    #endregion
+
+    #region Subscription Management
+    // <summary>
+    // Subscribe to manager events. Idempotent - safe to call multiple times.
+    // Called by OnEnable and by GameManager.RegisterPlayer after external wiring
+    public void TrySubscribe()
+    {
+        if (subscribed) return;
+        if (inputManager == null || timeManager == null) return;
+
+        inputManager.OnBasicPressedDSP += HandleBasicPressedDSP;
+        timeManager.OnBeat += HandleBeat;
+        subscribed = true;
+    }
+
+    private void Unsubscribe()
+    {
+        if (!subscribed) return;
+
         if (inputManager != null) inputManager.OnBasicPressedDSP -= HandleBasicPressedDSP;
-        if (timeManager  != null) timeManager.OnBeat -= HandleBeat;
+        if (timeManager != null)  timeManager.OnBeat -= HandleBeat;
+        subscribed = false;
     }
     #endregion
 
     #region Input & Combo
-    private void HandleBeat(int _)
+    private void HandleBeat(BeatTickEvent _)
     {
-        // Beat-based combo inactivity
+        if (isPaused) return;
         if (beatConfig != null && beatConfig.resetOnInactivityBeats > 0)
         {
             beatsSinceLastOnBeatPress++;
             if (beatsSinceLastOnBeatPress >= beatConfig.resetOnInactivityBeats)
-            {
                 ResetCombo("inactivity");
-            }
         }
     }
 
-    private void HandleBasicPressedDSP(double pressDSP)
+    private void HandleBasicPressedDSP(BasicPressedEvent e)
     {
+        if (isPaused) return;
+        double pressDSP = e.dspTime;
+        
         if (attackInProgress) return; // respect the current attack window
         if (pressDSP - lastPressDSP < attackCooldown) return; // basic anti-spam
         lastPressDSP = pressDSP;
 
-        // TimeManager is critical for beat detection - fail fast if missing
-        if (timeManager == null)
-        {
-            DebugHelper.LogWarning("[PAC] TimeManager is null - cannot process attack timing! All attacks will fail.");
-            return;
-        }
-
         bool onBeat = timeManager.IsOnBeat(pressDSP);
-
-        // Combo rules:
-        // - Off-beat press: allowed, but resets streak immediately (never contributes to strong)
-        // - On-beat press: increments streak; if reaches comboStreak -> strong attack and reset afterwards
         bool isStrong = false;
-
         if (!onBeat)
-        {
             if (beatConfig == null || beatConfig.resetOnOffBeat) ResetCombo("off-beat");
-        }
         else
         {
             beatsSinceLastOnBeatPress = 0;
             onBeatStreak++;
             if (combatConfig != null && onBeatStreak >= combatConfig.comboStreak)
-            {
                 isStrong = true;
-                // Reset streak after strong resolves (done at the end of the window)
-            }
         }
 
-        // Run the attack window
         StartCoroutine(DoAttackWindow(onBeat, isStrong));
     }
     #endregion
@@ -127,7 +125,6 @@ public class PlayerAttackController : MonoBehaviour
 
         float windowSec = combatConfig != null ? combatConfig.attackWindow : 0.20f;
 
-        // Lock aim for strong only during the window
         if (isStrong)
         {
             isAimLocked = true;
@@ -137,17 +134,14 @@ public class PlayerAttackController : MonoBehaviour
 
         // Tell weapon to open its active window; it will collect hits.
         // NOTE: Weapon will be replaced next to provide StartAttackWindow + ConsumeHitTargets.
-        weapon.StartAttackWindow(isStrong, windowSec);
+        weapon.StartAttackWindow(isStrongAttack: isStrong, wasOnBeat: onBeat, windowSeconds: windowSec);
 
-        // Wait for the window to finish
         yield return new WaitForSeconds(windowSec);
 
         // Consume hit targets from the weapon for this window
         IReadOnlyList<Entity> hits = weapon.ConsumeHitTargets();
-
         bool success = hits != null && hits.Count > 0;
 
-        // Emit AttackResolved (DamageApplied will be emitted per-hit by Weapon during the window)
         var evt = new AttackResolved(
             attacker: GetComponent<Entity>(),
             success: success,
@@ -158,7 +152,6 @@ public class PlayerAttackController : MonoBehaviour
         );
         EventBus.Instance.Publish(evt);
 
-        // Reset strong combo after a strong attack fires
         if (isStrong) onBeatStreak = 0;
 
         attackInProgress = false;

@@ -46,7 +46,7 @@ public class Enemy : Entity
 
     private void Start()
     {
-        playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
+        playerTarget ??= GameManager.Instance?.MainPlayer;
         EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
     }
 
@@ -120,7 +120,7 @@ public class Enemy : Entity
     public void StartPatrol()
     {
         if (patrolCoroutine != null) return;
-        playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
+        playerTarget ??= GameManager.Instance?.MainPlayer;
         patrolCoroutine = StartCoroutine(PatrolRoutine());
     }
 
@@ -139,7 +139,7 @@ public class Enemy : Entity
         {
             if (playerTarget == null)
             {
-                playerTarget = GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
+                playerTarget = GameManager.Instance?.MainPlayer;
                 yield return _waitForSeconds0_25;
                 continue;
             }

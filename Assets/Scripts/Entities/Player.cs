@@ -28,59 +28,23 @@ public class Player : Entity
     {
         base.Awake();
         
-        // 1. Get weapon GameObject FIRST
         playerWeapon ??= GetComponentInChildren<Weapon>();
-        GameObject weaponGO = playerWeapon?.gameObject;
-        
-        // 2. Get other components
         mover = GetComponent<PlayerMover2D>();
         attackController = GetComponent<PlayerAttackController>();
         
-        // Acquire managers from GameManager if not set in inspector
-        // IMPORTANT: Must be in Awake (not Start) so they're available for OnEnable subscriptions
-        inputManager ??= GameManager.Instance?.inputManager;
-        timeManager  ??= GameManager.Instance?.timeManager;
-        
-        // 3. Pass weapon GameObject and managers to components
         if (mover != null)
         {
-            mover.weapon = weaponGO?.GetComponent<Weapon>();
+            mover.weapon = playerWeapon;
             mover.attackController = attackController;
-            if (inputManager != null) 
-                mover.inputManager = inputManager;
         }
-        
+
         if (attackController != null)
-        {
-            attackController.SetWeapon(weaponGO?.GetComponent<Weapon>());
-        }
-        
-        // Log errors if managers are still null after acquisition
-        if (GameManager.Instance == null)
-            DebugHelper.LogError("[Player] GameManager.Instance is null during Awake!");
-        if (inputManager == null)
-            DebugHelper.LogError("[Player] InputManager not found. Input will not work.");
-        if (timeManager == null)
-            DebugHelper.LogError("[Player] TimeManager not found. Timing will not work.");
+            attackController?.SetWeapon(weaponComponent);
     }
 
     private void Start()
     {
-        // Self-register as main player
-        GameManager.Instance?.RegisterPlayer(this);
-
-        // Set duty state now that things are wired
         SetDutyState(true);
-    }
-
-    private void OnEnable()
-    {
-        // PlayerAttackController manages its own event subscriptions in OnEnable
-    }
-
-    private void OnDisable()
-    {
-        // PlayerAttackController manages its own event unsubscriptions in OnDisable
     }
     #endregion
 
@@ -89,15 +53,6 @@ public class Player : Entity
     {
         base.OnDutyStateChanged(fromDuty, toDuty);
         playerWeapon?.SetOwnerDutyState(toDuty);
-    }
-
-    private void Update()
-    {
-        // Update weapon aiming with right stick input
-        if (playerWeapon != null && inputManager != null && onDuty && currentState == EntityState.ALIVE)
-        {
-            playerWeapon.UpdateAiming(inputManager.Aim);
-        }
     }
     #endregion
 
@@ -110,9 +65,7 @@ public class Player : Entity
 
         // Show damage flash effect for better combat clarity
         if (currentState != EntityState.DEAD)
-        {
             AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, GameConstants.HIT_FLASH_DURATION);
-        }
 
         // Reset combos and abort any ongoing strong-lock when hit
         attackController?.ResetCombo();

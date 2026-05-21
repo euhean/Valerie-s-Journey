@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -16,16 +15,11 @@ using UnityEngine.SceneManagement;
 public class GameManager : MonoBehaviour
 {
     #region Singleton
-    public static GameManager Instance { get; private set; }
+    public static GameManager Instance { get; private set; } = GameState.Menu;
     #endregion
 
     #region Types
-    public enum GameState
-    {
-        Boot, MainScreen, MenuSelector, LevelPreload,
-        Cinematic, DialogueScene, LevelLoad,
-        CompletionScene, ExitOrContinue, Gameplay
-    }
+    public enum GameState { Gameplay, Dialog, Menu }
     #endregion
 
     #region Inspector: Managers & Level
@@ -48,6 +42,7 @@ public class GameManager : MonoBehaviour
     [Header("Auto Assigned")]
     public Player MainPlayer { get; private set; }
     public GameState State { get; private set; } = GameState.Boot;
+    private readonly List<BaseManager> _managers = new();
     bool managersStarted = false;
     #endregion
 
@@ -63,6 +58,9 @@ public class GameManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         DebugHelper.LogManager("GameManager initializing...");
+
+        AutoConfigureScene();
+        RunManagerLifecycle();
     }
 
     private void OnEnable()
@@ -77,15 +75,8 @@ public class GameManager : MonoBehaviour
         StopManagers();
     }
 
-    private IEnumerator Start()
+    private void Start()
     {
-        // allow scene Awake/OnEnable to run
-        yield return null;
-
-        AutoConfigureScene();
-        RunManagerLifecycle();
-
-        // enter gameplay state (this will start runtimes)
         ChangeState(GameState.Gameplay);
     }
     #endregion
@@ -95,50 +86,42 @@ public class GameManager : MonoBehaviour
     {
         DebugHelper.LogManager($"Scene loaded: {scene.name} — rewire managers");
 
-        // stop and unbind old managers to avoid stale subscriptions/ghost calls
         StopManagers();
 
-        // clear cached scene-local refs so AutoConfigureScene will find new ones
         inputManager = null;
         timeManager = null;
         levelManager = null;
+        dialogManager = null;
         MainPlayer = null;
 
         AutoConfigureScene();
         RunManagerLifecycle();
-
-        // If we are currently in Gameplay, restart manager runtime
-        if (State == GameState.Gameplay)
-        {
-            inputManager?.StartRuntime();
-            timeManager?.StartRuntime();
-            levelManager?.StartRuntime();
-        }
+        StartAllManagers();
+        ChangeState(GameState.Gameplay);
     }
 
     private void AutoConfigureScene()
     {
-        // Find managers in scene if not set in inspector
-        inputManager ??= FindFirstObjectByType<InputManager>();
-        timeManager  ??= FindFirstObjectByType<TimeManager>();
-        levelManager ??= FindFirstObjectByType<LevelManager>();
-        dialogManager ??= FindFirstObjectByType<DialogManager>();
-        MainPlayer   ??= FindFirstObjectByType<Player>();
-
-        // Optionally push beatConfig into TimeManager if the field/property exists
-        if (timeManager != null && beatConfig != null)
+        _managers.clear();
+        _managers.AddRange(FindObjectsByType<BaseManager>(FindObjectsSortMode.None));
+        
+        foreach (var m in _managers)
         {
-            var tmType = timeManager.GetType();
-            var field = tmType.GetField("beatConfig", BindingFlags.Public | BindingFlags.Instance);
-            if (field != null && field.FieldType == typeof(BeatConfig))
-                field.SetValue(timeManager, beatConfig);
-            else
-            {
-                var prop = tmType.GetProperty("BeatConfig", BindingFlags.Public | BindingFlags.Instance);
-                if (prop != null && prop.PropertyType == typeof(BeatConfig) && prop.CanWrite)
-                    prop.SetValue(timeManager, beatConfig);
-            }
+          switch (m)
+          {
+            case InputManager im: inputManager ??= im; break;
+            case TimeManager  tm: timeManager  ??= tm; break;
+            case LevelManager lm: levelManager ??= lm; break;
+            case DialogManager dm: dialogManager ??= dm; break;
+          }
         }
+        
+        if (timeManager != null && beatConfig != null)
+          timeManager.beatConfig = beatConfig;
+
+        var existingPlayer = FindFirstObjectByType<Player>();
+        if (existingPlayer != null && MainPlayer == null)
+          RegisterPlayer(existingPlayer);
 
         EnsureAudioListener();
     }
@@ -148,26 +131,17 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void RunManagerLifecycle()
     {
-        // Configure
-        inputManager?.Configure(this);
-        timeManager?.Configure(this);
-        levelManager?.Configure(this);
-        dialogManager?.Configure(this);
-
-        // Initialize
-        inputManager?.Initialize();
-        timeManager?.Initialize();
-        levelManager?.Initialize();
-        dialogManager?.Initialize();
-
-        // Bind events
-        inputManager?.BindEvents();
-        timeManager?.BindEvents();
-        levelManager?.BindEvents();
-        dialogManager?.BindEvents();
+        foreach (var m in _managers) m.Configure(this);
+        foreach (var m in _managers) m.Initialize();
+        foreach (var m in _managers) m.BindEvents();
 
         DebugHelper.LogManager("RunManagerLifecycle completed (Configure/Initialize/Bind).");
         managersStarted = true;
+    }
+
+    private void StartAllManagers()
+    {
+      foreach (var m in _managers) m.StartRuntime();
     }
     #endregion
 
@@ -178,17 +152,8 @@ public class GameManager : MonoBehaviour
 
         try
         {
-            // Stop runtime first (idempotent)
-            inputManager?.StopRuntime();
-            timeManager?.StopRuntime();
-            levelManager?.StopRuntime();
-            dialogManager?.StopRuntime();
-
-            // Then unbind events
-            inputManager?.UnbindEvents();
-            timeManager?.UnbindEvents();
-            levelManager?.UnbindEvents();
-            dialogManager?.UnbindEvents();
+          foreach (var m in _managers) m.StopRuntime();
+          foreach (var m in _managers) m.UnbindEvents();
         }
         catch (Exception ex)
         {
@@ -227,6 +192,7 @@ public class GameManager : MonoBehaviour
     public void RegisterPlayer(Player p)
     {
         if (p == null) return;
+        if (MainPlayer == p) return;
         MainPlayer = p;
         DebugHelper.LogManager(() => $"MainPlayer registered: {p.name}");
 
@@ -276,16 +242,19 @@ public class GameManager : MonoBehaviour
 
     public void ChangeState(GameState next)
     {
-        DebugHelper.LogManager($"Game state changed: {State} → {next}");
+        if (State == next) return;
+
+        var prev = State;
+        DebugHelper.LogManager(&"Game state changed: {prev} -> {next}");
         State = next;
-        if (State == GameState.Gameplay)
-        {
-            inputManager?.StartRuntime();
-            timeManager?.StartRuntime();
-            levelManager?.StartRuntime();
-        }
-        else
-            StopManagers();
+
+        Time.timeScale = (next == GameState.Gameplay) ? 1f : 0f;
+
+        EventBus.Instance.Publish(new GameStateChangedEvent
+            {
+                from = prev,
+                to = next;
+            })
     }
     #endregion
 }

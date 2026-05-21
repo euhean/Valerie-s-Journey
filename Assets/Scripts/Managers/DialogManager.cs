@@ -15,7 +15,6 @@ public class DialogManager : BaseManager
 
     private DialogueNode[] dialogueNodes;
     private int currentNodeIndex = 0;
-    public InputManager inputManager;
     private bool dialogueActive = false;
     private bool eventBound = false;
 
@@ -23,7 +22,6 @@ public class DialogManager : BaseManager
     public override void Configure(GameManager gm)
     {
         base.Configure(gm);
-        inputManager ??= GetComponent<InputManager>();
         Debug.Log("DialogManager: Configured.");
     }
 
@@ -38,7 +36,6 @@ public class DialogManager : BaseManager
 
     public override void BindEvents()
     {
-        // No se suscribe aquí - espera a que el diálogo se active
     }
 
     public override void StartRuntime() { }
@@ -80,7 +77,7 @@ public class DialogManager : BaseManager
         dialoguePanel.SetActive(true);
         dialogueActive = true;
 
-        // Suscribirse al input solo cuando el diálogo se activa
+        GameManager.Instance?.ChangeState(GameManager.GameState.Dialog);
         SubscribeToInput();
 
         speakerText.text = node.speaker;
@@ -93,38 +90,26 @@ public class DialogManager : BaseManager
             portraitImage.gameObject.SetActive(sprite != null);
             if (sprite == null) Debug.LogWarning("No se encontró el sprite: " + node.portraitName);
         }
-        else
-        {
-            portraitImage.gameObject.SetActive(false);
-        }
+        else portraitImage.gameObject.SetActive(false);
     }
 
     private void SubscribeToInput()
     {
-        if (eventBound) return; // Evita doble suscripción
-
-        if (inputManager == null)
-            inputManager = GameManager.Instance.inputManager;
-
-        if (inputManager != null)
-        {
-            inputManager.OnSubmitPressed += NextNode;
-            eventBound = true;
-            Debug.Log("DialogManager: Suscrito al evento de submit.");
-        }
+        if (eventBound) return;
+        EventBus.Instance.Subscribe<SubmitPressedEvent>(OnSubmitEvent);
+        eventBound = true;
+        Debug.Log("DialogManager: Suscrito al evento de submit.");
     }
 
     private void UnsubscribeFromInput()
     {
         if (!eventBound) return;
-
-        if (inputManager != null)
-        {
-            inputManager.OnSubmitPressed -= NextNode;
-            eventBound = false;
-            Debug.Log("DialogManager: Desuscrito del evento de submit.");
-        }
+        EventBus.Instance.Unsubscribe<SubmitPressedEvent>(OnSubmitEvent);
+        eventBound = false;
+        Debug.Log("DialogManager: Unsubscribed from SubmitPressedEvent");
     }
+
+    private void OnSubmitEvent(SubmitPressedEvent _) => NextNode();
 
     public void NextNode()
     {
@@ -147,6 +132,7 @@ public class DialogManager : BaseManager
     {
         UnsubscribeFromInput();
         dialoguePanel.SetActive(false);
+        GameManager.Instance?.ChangeState(GameManager.ChangeState.Gameplay);
         speakerText.text = "";
         dialogueText.text = "";
         portraitImage.gameObject.SetActive(false);

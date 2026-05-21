@@ -43,6 +43,11 @@ public class GameplayEvent
     public bool inCombat;
 }
 
+/// <summary>
+/// Fired ONCE per attack swing, at the end of the attack window.
+/// Carries the aggregate result (success, list of targets hit, beat alignment).
+/// Subscribe for: combo logic, swing-level effects, analytics.
+/// </summary>
 public struct AttackResolved
 {
     public Entity attacker;
@@ -63,6 +68,11 @@ public struct AttackResolved
     }
 }
 
+/// <summary>
+/// Fired AT THE MOMENT of impact, once per target hit by a swing.
+/// A swing that hits N targets produces N DamageApplied events plus 1 AttackResolved.
+/// Subscribe for: hit sounds, damage numbers, per-hit visual feedback, enemy reactions.
+/// </summary>
 public struct DamageApplied
 {
     public Entity attacker;
@@ -80,5 +90,25 @@ public struct DamageApplied
         this.killingBlow = killingBlow;
         this.isStrong    = isStrong;
         this.onBeat      = onBeat;
+    }
+
+    public struct BasicPressedEvent
+    {
+        public double dspTime;
+    }
+
+    public struct SubmitPressedEvent { }
+    public struct CancelPressedEvent { }
+
+    public struct BeatTickEvent
+    {
+        public int beatIndex;
+        public double dspTime;
+    }
+    
+    public struct GameStateChangedEvent
+    {
+        public GameManager.GameState from;
+        public GameManager.GameState to;
     }
 }

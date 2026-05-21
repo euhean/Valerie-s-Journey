@@ -14,6 +14,5 @@ public abstract class BaseManager : MonoBehaviour
     public virtual void StartRuntime() {}
     public virtual void StopRuntime() {}
     public virtual void UnbindEvents() {}
-    public virtual void Pause(bool isPaused) {}
     public virtual void Teardown() {}
 }

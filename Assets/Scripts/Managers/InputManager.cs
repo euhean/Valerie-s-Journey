@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -24,9 +23,6 @@ public class InputManager : BaseManager
     public Vector2 Move { get; private set; }
     public Vector2 Aim  { get; private set; }
     public Vector2 Navigate { get; private set; }
-    public event Action<double> OnBasicPressedDSP;
-    public event Action OnSubmitPressed;
-    public event Action OnCancelPressed;
     #endregion
 
     #region Private
@@ -111,10 +107,8 @@ public class InputManager : BaseManager
 
         if (basicAction && basicAction.action != null)
             basicAction.action.performed -= HandleBasicPerformed;
-
         if (submitAction && submitAction.action != null)
             submitAction.action.performed -= HandleSubmitPerformed;
-
         if (cancelAction && cancelAction.action != null)
             cancelAction.action.performed -= HandleCancelPerformed;
 
@@ -155,19 +149,19 @@ public class InputManager : BaseManager
         if (!ctx.performed) return;
         double dspTime = AudioSettings.dspTime;
         DebugHelper.Log(() => $"InputManager: Basic action pressed at DSP {dspTime:F4}");
-        OnBasicPressedDSP?.Invoke(dspTime);
+        EventBus.Instance.Publish(new BasicPressedEvent { dspTime = dspTime });
     }
 
     private void HandleSubmitPerformed(InputAction.CallbackContext ctx)
     {
         DebugHelper.Log("InputManager: Submit action pressed");
-        OnSubmitPressed?.Invoke();
+        EventBus.Instance.Publish(new SubmitPressedEvent());
     }
 
     private void HandleCancelPerformed(InputAction.CallbackContext ctx)
     {
         DebugHelper.Log("InputManager: Cancel action pressed");
-        OnCancelPressed?.Invoke();
+        EventBus.Instance.Publish(new CancelPressedEvent());
     }
     #endregion
 

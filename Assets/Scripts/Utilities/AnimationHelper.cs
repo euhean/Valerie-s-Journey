@@ -1,27 +1,52 @@
-using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
 
-#region AnimationHelper
 /// <summary>
-/// AnimationHelper as a scene-attached MonoBehaviour. 
-/// NO auto-create. Attach one instance in the scene (recommended on GameManager or a persistent "FX" object).
-/// Static wrappers will use the instance if present, or an explicit MonoBehaviour runner passed by the caller.
+/// Scene-attached helper for floating combat feedback (text + hit effects).
+/// Maintains a pool of TextMeshPro instances so spawning feedback doesn't allocate.
+/// Attach one instance in the scene (recommended on a persistent "FX" object).
 /// </summary>
 public class AnimationHelper : MonoBehaviour
 {
     public static AnimationHelper Instance { get; private set; }
 
-    #region Unity lifecycle
+    #region Inspector
+    [Header("Feedback Text Pool")]
+    [Tooltip("Required. Assign a TMP font asset (e.g. LiberationSans SDF).")]
+    public TMP_FontAsset fontAsset;
+    [Tooltip("Initial pool size. Pool grows on demand if exceeded.")]
+    public int initialPoolSize = 16;
+    [Tooltip("Font size in world units. Tune for your camera ortho size.")]
+    public float worldFontSize = 4f;
+    [Tooltip("2D sorting layer. Should match your sprites' layer or render above them.")]
+    public string sortingLayer = "Default";
+    public int sortingOrder = 1000;
+    #endregion
+
+    private readonly Queue<FeedbackText> _pool = new();
+    private Transform _poolRoot;
+
+    #region Unity Lifecycle
     private void Awake()
     {
         if (Instance != null && Instance != this)
         {
-            Debug.LogWarning("[AnimationHelper] Another instance already exists. Destroying duplicate.");
+            Debug.LogWarning("[AnimationHelper] Another instance exists; destroying duplicate.");
             Destroy(gameObject);
             return;
         }
-
         Instance = this;
+
+        if (fontAsset == null)
+            DebugHelper.LogError("[AnimationHelper] fontAsset is not assigned — feedback text will not render.");
+
+        _poolRoot = new GameObject("FeedbackTextPool").transform;
+        _poolRoot.SetParent(transform, false);
+
+        for (int i = 0; i < initialPoolSize; i++)
+            _pool.Enqueue(CreatePoolItem());
     }
 
     private void OnDestroy()
@@ -30,17 +55,52 @@ public class AnimationHelper : MonoBehaviour
     }
     #endregion
 
-    #region Static API (convenience wrappers)
-    public static void ShowText(Vector3 worldPos, string text, Color color, float duration = GameConstants.TEXT_DURATION)
+    #region Pool Management
+    private FeedbackText CreatePoolItem()
     {
-        GameObject feedbackObj = new GameObject($"Feedback_{text}");
-        feedbackObj.transform.position = worldPos + Vector3.up * GameConstants.TEXT_OFFSET_Y;
-        var feedback = feedbackObj.AddComponent<InstantTextFeedback>();
-        feedback.Initialize(text, color, duration);
+        var go = new GameObject("FeedbackText");
+        go.transform.SetParent(_poolRoot, false);
+        go.SetActive(false);
+
+        var tmp = go.AddComponent<TextMeshPro>();
+        if (fontAsset != null) tmp.font = fontAsset;
+        tmp.fontSize = worldFontSize;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.sortingLayerID = SortingLayer.NameToID(sortingLayer);
+        tmp.sortingOrder = sortingOrder;
+
+        var item = go.AddComponent<FeedbackText>();
+        item.BindOwner(this, tmp);
+        return item;
     }
 
-    public static void ShowDeath(Vector3 worldPos) => ShowText(worldPos, "DEAD", Color.red);
-    public static void ShowAttack(Vector3 worldPos) => ShowText(worldPos, "ATTACK", Color.yellow);
+    private FeedbackText Acquire()
+    {
+        // Reuse from pool, or grow if empty.
+        return _pool.Count > 0 ? _pool.Dequeue() : CreatePoolItem();
+    }
+
+    internal void Release(FeedbackText item)
+    {
+        item.gameObject.SetActive(false);
+        _pool.Enqueue(item);
+    }
+    #endregion
+
+    #region Static API (unchanged callers)
+    public static void ShowText(Vector3 worldPos, string text, Color color, float duration = GameConstants.TEXT_DURATION)
+    {
+        if (Instance == null)
+        {
+            DebugHelper.LogWarning("[AnimationHelper] No Instance — attach AnimationHelper to a scene object.");
+            return;
+        }
+        var item = Instance.Acquire();
+        item.Show(worldPos, text, color, duration);
+    }
+
+    public static void ShowDeath(Vector3 worldPos)        => ShowText(worldPos, "DEAD", Color.red);
+    public static void ShowAttack(Vector3 worldPos)       => ShowText(worldPos, "ATTACK", Color.yellow);
     public static void ShowStrongAttack(Vector3 worldPos) => ShowText(worldPos, "STRONG!", GameConstants.ORANGE_COLOR);
 
     public static void ShowCombo(Vector3 worldPos, int comboCount)
@@ -50,60 +110,47 @@ public class AnimationHelper : MonoBehaviour
         ShowText(worldPos, comboText, comboColor, GameConstants.COMBO_TEXT_DURATION);
     }
 
-    /// <summary>
-    /// Show a color flash on a sprite renderer for duration.
-    /// runner: optional MonoBehaviour to start the coroutine on (prefer the entity or GameManager).
-    /// If runner is null, will use Instance if present; otherwise attempts to use a MonoBehaviour on the renderer's parent.
-    /// If none found, logs and returns.
-    /// </summary>
+    // Hit flash + shake are unchanged — they modify existing renderers, no allocation.
     public static void ShowHitFlash(SpriteRenderer renderer, Color flashColor, float duration, MonoBehaviour runner = null)
     {
         if (renderer == null) return;
-
         MonoBehaviour actualRunner = ResolveRunner(renderer, runner);
         if (actualRunner == null)
         {
-            Debug.LogWarning("[AnimationHelper] No runner available for ShowHitFlash - attach AnimationHelper to scene or pass a runner.");
+            DebugHelper.LogWarning("[AnimationHelper] No runner for ShowHitFlash.");
             return;
         }
-
         actualRunner.StartCoroutine(HitFlashCoroutine(renderer, flashColor, duration));
     }
 
     public static void ShowStrongHitShake(Transform target, SpriteRenderer renderer, Color flashColor, float duration, MonoBehaviour runner = null)
     {
         if (target == null || renderer == null) return;
-
         MonoBehaviour actualRunner = ResolveRunner(renderer, runner);
         if (actualRunner == null)
         {
-            Debug.LogWarning("[AnimationHelper] No runner available for ShowStrongHitShake - attach AnimationHelper to scene or pass a runner.");
+            DebugHelper.LogWarning("[AnimationHelper] No runner for ShowStrongHitShake.");
             return;
         }
-
         actualRunner.StartCoroutine(StrongHitShakeCoroutine(target, renderer, flashColor, duration));
     }
     #endregion
 
     #region Runner resolution
-    // Try to find a MonoBehaviour to run coroutines on (priority: explicit runner -> Instance -> parent component)
     private static MonoBehaviour ResolveRunner(SpriteRenderer renderer, MonoBehaviour explicitRunner)
     {
         if (explicitRunner != null) return explicitRunner;
         if (Instance != null) return Instance;
-
         if (renderer != null)
         {
-            // renderer.GetComponent<MonoBehaviour>() will return null often; check parents instead.
             var parentMono = renderer.GetComponentInParent<MonoBehaviour>();
             if (parentMono != null) return parentMono;
         }
-
         return null;
     }
     #endregion
 
-    #region Coroutines (static so any runner can start them)
+    #region Hit Flash Coroutines
     private static IEnumerator HitFlashCoroutine(SpriteRenderer renderer, Color flashColor, float duration)
     {
         if (renderer == null) yield break;
@@ -124,7 +171,6 @@ public class AnimationHelper : MonoBehaviour
 
         Vector3 originalPosition = target.position;
         Color originalColor = renderer.color;
-
         renderer.color = flashColor;
 
         float shakeDuration = duration * GameConstants.SHAKE_DURATION_MULTIPLIER;
@@ -139,7 +185,6 @@ public class AnimationHelper : MonoBehaviour
                 0f
             );
             if (target != null) target.position = originalPosition + shakeOffset;
-
             elapsed += Time.deltaTime;
             yield return null;
         }
@@ -149,44 +194,49 @@ public class AnimationHelper : MonoBehaviour
     }
     #endregion
 
-    #region InstantTextFeedback nested class
-    public class InstantTextFeedback : MonoBehaviour
+    #region Nested: FeedbackText component
+    /// <summary>
+    /// Pooled, world-space TMP text that fades out and returns to its owner pool.
+    /// </summary>
+    public class FeedbackText : MonoBehaviour
     {
-        private string displayText;
-        private Color textColor;
+        private AnimationHelper owner;
+        private TextMeshPro tmp;
         private float timer;
         private float duration;
+        private Color baseColor;
 
-        public void Initialize(string text, Color color, float displayDuration)
+        public void BindOwner(AnimationHelper owner, TextMeshPro tmp)
         {
-            displayText = text;
-            textColor = color;
+            this.owner = owner;
+            this.tmp = tmp;
+        }
+
+        public void Show(Vector3 worldPos, string text, Color color, float displayDuration)
+        {
+            transform.position = worldPos + Vector3.up * GameConstants.TEXT_OFFSET_Y;
+            tmp.text = text;
+            baseColor = color;
+            tmp.color = color;
             duration = displayDuration;
             timer = 0f;
+            gameObject.SetActive(true);
         }
 
         private void Update()
         {
             timer += Time.deltaTime;
-            if (timer >= duration) Destroy(gameObject);
-        }
-
-        private void OnGUI()
-        {
-            if (Camera.main == null) return;
-            Vector3 screenPos = Camera.main.WorldToScreenPoint(transform.position);
-            if (screenPos.z > 0)
+            if (timer >= duration)
             {
-                screenPos.y = Screen.height - screenPos.y;
-                float alpha = 1f - (timer / Mathf.Max(0.0001f, duration));
-                Color guiColor = textColor;
-                guiColor.a = alpha;
-                GUI.color = guiColor;
-                GUI.Label(new Rect(screenPos.x - 50, screenPos.y - 10, 100, 20), displayText);
-                GUI.color = Color.white;
+                owner.Release(this);
+                return;
             }
+
+            float alpha = 1f - (timer / Mathf.Max(0.0001f, duration));
+            var c = baseColor;
+            c.a = alpha;
+            tmp.color = c;
         }
     }
     #endregion
 }
-#endregion

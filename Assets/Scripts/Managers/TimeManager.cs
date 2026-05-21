@@ -14,11 +14,6 @@ public class TimeManager : BaseManager
 
     [Header("Beat Config (assigned by GameManager or in Inspector)")]
     public BeatConfig beatConfig; // assigned by GameManager.AutoConfigureScene when available
-
-    /// <summary>Raised on each beat; payload = beat index (starting at 0).</summary>
-    public event Action<int> OnBeat;
-
-    // Internal timing state
     private bool running = false;
     private Coroutine metronomeCoroutine;
     private double nextBeatDSP = 0.0;
@@ -105,17 +100,21 @@ public class TimeManager : BaseManager
             {
                 // Fire beat
                 lastBeatDSP = nextBeatDSP;
+                
                 try
                 {
-                    OnBeat?.Invoke(beatIndex);
+                    EventBus.Instance.Publish(new BeatTickEvent
+                        {
+                            beatIndex = beatIndex,
+                            dspTime = lastBeatDSP
+                        });
                 }
                 catch (Exception ex)
                 {
-                    DebugHelper.LogWarning($"[TimeManager] OnBeat handler threw: {ex.Message}");
+                    DebugHelper.LogWarning($"[TimeManager] BeatTick publish threw: {ex.Message}");
                 }
 
                 beatIndex++;
-                // schedule next
                 secondsPerBeat = 60.0 / Math.Max(1f, bpm);
                 nextBeatDSP += secondsPerBeat;
                 dspNow = AudioSettings.dspTime;

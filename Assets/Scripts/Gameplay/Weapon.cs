@@ -1,5 +1,5 @@
 using UnityEngine;
-using System.Collections.Generic;
+using System.Collections;
 
 /// <summary>
 /// Generic weapon: timed attack window, overlap-based hits, damage application,
@@ -11,7 +11,6 @@ using System.Collections.Generic;
 public class Weapon : MonoBehaviour
 {
     #region Inspector
-
     [Header("Optional Config (overrides GameConstants damages if set)")]
     public CombatConfig combatConfig;
 
@@ -30,19 +29,17 @@ public class Weapon : MonoBehaviour
     [SerializeField] private BoxCollider2D weaponCollider;
     [SerializeField] private SpriteRenderer weaponRenderer;
     private Entity ownerEntity;
-
     #endregion
 
     #region Runtime State
-
-    // Current window state
     private bool isAttacking = false;
     private bool currentAttackIsStrong = false;
+    private bool currentAttackOnBeat = false;
 
-    // Per-window hit tracking
+    private Coroutine _resetRoutine;
+
     private readonly HashSet<Entity> hitSet = new HashSet<Entity>();
     private readonly List<Entity> hitList = new List<Entity>();
-
     #endregion
 
 #if UNITY_EDITOR
@@ -77,7 +74,6 @@ public class Weapon : MonoBehaviour
     #endregion
 
     #region Public API (called by PlayerAttackController)
-
     /// <summary>
     /// Opens a timed attack window. During the window, overlapping entities are damaged once.
     /// </summary>
@@ -88,30 +84,26 @@ public class Weapon : MonoBehaviour
             !ownerEntity.onDuty)
             return;
 
-        // Validate windowSeconds to prevent NaN, negative, or zero values from breaking the system
         if (float.IsNaN(windowSeconds) || float.IsInfinity(windowSeconds) || windowSeconds <= 0f)
         {
             DebugHelper.LogWarning($"[Weapon] Invalid windowSeconds={windowSeconds}, clamping to 0.01f");
             windowSeconds = 0.01f; // Minimum safe duration
         }
 
-        // Begin window
         isAttacking = true;
         currentAttackIsStrong = isStrongAttack;
+        currentAttackOnBeat   = wasOnBeat;
         hitSet.Clear();
         hitList.Clear();
 
-        // Visual flash to indicate attack
         var effectColor = isStrongAttack ? GameConstants.ORANGE_COLOR : attackColor;
         AnimationHelper.ShowHitFlash(weaponRenderer, effectColor, windowSeconds);
 
-        // Weapon should be visible & colliding while on duty
         SetVisualState(true);
         if (weaponCollider) weaponCollider.enabled = true;
-
-        // Close window after duration
-        CancelInvoke(nameof(ResetAttackState));
-        Invoke(nameof(ResetAttackState), windowSeconds);
+        
+        if (_resetRoutine != null) StopCoroutine(_resetRoutine);
+        _resetRoutine = StartCoroutine(ResetAfter(windowSeconds));
     }
 
     /// <summary>
@@ -160,11 +152,9 @@ public class Weapon : MonoBehaviour
         SetVisualState(isOnDuty);
         if (weaponCollider) weaponCollider.enabled = isOnDuty;
     }
-
     #endregion
 
     #region Collision
-
     private void OnTriggerStay2D(Collider2D other)
     {
         if (!isAttacking) return;
@@ -172,21 +162,13 @@ public class Weapon : MonoBehaviour
         if (!other.TryGetComponent<Entity>(out var targetEntity)) return;
         if (hitSet.Contains(targetEntity)) return;
 
-        // Determine damage
-        float dmg = currentAttackIsStrong
-            ? (combatConfig != null ? combatConfig.strongDamage : strongDamage)
-            : (combatConfig != null ? combatConfig.basicDamage  : basicDamage);
-
-        // Apply damage
         float before = targetEntity.Health;
         targetEntity.TakeDamage(dmg);
         bool killingBlow = targetEntity.Health <= 0f;
 
-        // Track hit
         hitSet.Add(targetEntity);
         hitList.Add(targetEntity);
 
-        // Notify
         EventBus.Instance.Publish(new DamageApplied(
             attacker: ownerEntity,
             target:   targetEntity,
@@ -198,13 +180,12 @@ public class Weapon : MonoBehaviour
 
         DebugHelper.LogCombat(() => $"[Weapon] Hit {targetEntity.name} for {dmg} ({before:F1}->{targetEntity.Health:F1})");
     }
-
     #endregion
 
     #region Helpers
-
-    private void ResetAttackState()
+    private IEnumerator ResetAfter(float seconds)
     {
+        yield return new WaitForSeconds(seconds);
         isAttacking = false;
 
         bool show = ownerEntity != null &&
@@ -213,6 +194,7 @@ public class Weapon : MonoBehaviour
 
         SetVisualState(show);
         if (weaponCollider) weaponCollider.enabled = show;
+        _resetRoutine = null;
     }
 
     private void SetVisualState(bool isOnDuty)
@@ -221,6 +203,5 @@ public class Weapon : MonoBehaviour
         weaponRenderer.enabled = isOnDuty;
         weaponRenderer.color   = isOnDuty ? onDutyColor : offDutyColor;
     }
-
     #endregion
 }

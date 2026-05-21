@@ -106,9 +106,6 @@ public class LevelManager : BaseManager
 
         GameManager.Instance?.RegisterPlayer(player);
 
-        // Publish your existing event type
-        EventBus.Instance?.Publish(new PlayerSpawnedEvent { player = player });
-
         DebugHelper.LogManager("LevelManager: Player spawned and registered.");
         return player;
     }
@@ -168,7 +165,6 @@ public class LevelManager : BaseManager
     {
         if (deathScreenCanvas != null) return; // Already showing
 
-        // Use ComponentHelper to create the UI (your helper defines these exact APIs)
         GameObject canvasGO = ComponentHelper.CreateFullScreenCanvas("DeathScreenCanvas");
 
         Color backgroundColor = new Color(0, 0, 0, 0.8f); // Semi-transparent black
@@ -185,6 +181,7 @@ public class LevelManager : BaseManager
             new Vector2(0.6f, 0.3f), new Vector2(0.8f, 0.4f), ExitGame);
 
         ComponentHelper.SetupUINavigation(panelGO);
+        GameManager.Instance?.ChangeState(GameManager.GameState.Menu);
 
         deathScreenCanvas = canvasGO;
     }
