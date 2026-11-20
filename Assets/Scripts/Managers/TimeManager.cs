@@ -3,7 +3,7 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// TimeManager / metronome: emits OnBeat events using DSP timing and consults BeatConfig.
+/// TimeManager / metronome: publishes BeatTickEvent using DSP timing and consults BeatConfig.
 /// Designed to be lifecycle-managed by GameManager (Configure/Initialize/BindEvents/StartRuntime/StopRuntime).
 /// </summary>
 public class TimeManager : BaseManager
@@ -22,9 +22,6 @@ public class TimeManager : BaseManager
     public float beatVolume = 0.5f;
     
     private AudioSource audioSource;
-
-    /// <summary>Raised on each beat; payload = beat index (starting at 0).</summary>
-    public event Action<int> OnBeat;
 
     // Internal timing state
     private bool running = false;
@@ -121,14 +118,7 @@ public class TimeManager : BaseManager
                 if (beatSound != null && audioSource != null)
                     audioSource.PlayOneShot(beatSound);
                 
-                try
-                {
-                    OnBeat?.Invoke(beatIndex);
-                }
-                catch (Exception ex)
-                {
-                    DebugHelper.LogWarning($"[TimeManager] OnBeat handler threw: {ex.Message}");
-                }
+                EventBus.Instance.Publish(new BeatTickEvent { beatIndex = beatIndex, dspTime = lastBeatDSP });
 
                 beatIndex++;
                 // schedule next

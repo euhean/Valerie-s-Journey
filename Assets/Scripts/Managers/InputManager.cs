@@ -1,9 +1,9 @@
-using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// New Input System wrapper: exposes Move/Aim vectors and basic button (edge) with DSP timestamp.
+/// New Input System wrapper: exposes Move/Aim vectors (polled) and publishes button
+/// presses on the EventBus (BasicPressedEvent carries the DSP timestamp).
 /// Supports Gamepad and KB+Mouse (WASD + mouse-aim + left click).
 /// </summary>
 public class InputManager : BaseManager
@@ -24,9 +24,6 @@ public class InputManager : BaseManager
     public Vector2 Move { get; private set; }
     public Vector2 Aim  { get; private set; }
     public Vector2 Navigate { get; private set; }
-    public event Action<double> OnBasicPressedDSP;
-    public event Action OnSubmitPressed;
-    public event Action OnCancelPressed;
     #endregion
 
     #region Private
@@ -140,19 +137,19 @@ public class InputManager : BaseManager
         if (!ctx.performed) return;
         double dspTime = AudioSettings.dspTime;
         DebugHelper.Log(() => $"InputManager: Basic action pressed at DSP {dspTime:F4}");
-        OnBasicPressedDSP?.Invoke(dspTime);
+        EventBus.Instance.Publish(new BasicPressedEvent { dspTime = dspTime });
     }
 
     private void HandleSubmitPerformed(InputAction.CallbackContext ctx)
     {
         DebugHelper.Log("InputManager: Submit action pressed");
-        OnSubmitPressed?.Invoke();
+        EventBus.Instance.Publish(new SubmitPressedEvent());
     }
 
     private void HandleCancelPerformed(InputAction.CallbackContext ctx)
     {
         DebugHelper.Log("InputManager: Cancel action pressed");
-        OnCancelPressed?.Invoke();
+        EventBus.Instance.Publish(new CancelPressedEvent());
     }
     #endregion
 

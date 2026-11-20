@@ -202,8 +202,7 @@ public class GameManager : MonoBehaviour
         var pac = p.GetComponent<PlayerAttackController>();
         if (pac != null)
         {
-            pac.inputManager ??= inputManager;
-            pac.timeManager  ??= timeManager;
+            pac.timeManager = timeManager;
             pac.combatConfig ??= combatConfig;
             pac.beatConfig   ??= beatConfig;
             

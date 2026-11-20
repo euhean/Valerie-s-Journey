@@ -9,9 +9,8 @@ using UnityEngine;
 public class PlayerAttackController : MonoBehaviour
 {
     #region Inspector
-    [Header("Manager Refs (assign or left to be fetched from GameManager)")]
-    public InputManager inputManager;
-    public TimeManager timeManager;
+    [Header("Manager Refs (wired by GameManager.RegisterPlayer)")]
+    public TimeManager timeManager; // queried for on-beat judgement
 
     [Header("Configs (ScriptableObjects)")]
     public CombatConfig combatConfig; // basicDamage, strongDamage, comboStreak, attackWindow
@@ -46,31 +45,23 @@ public class PlayerAttackController : MonoBehaviour
         if (beatConfig == null) DebugHelper.LogManager("[PAC] Using GameConstants for beat values (BeatConfig not assigned).");
     }
 
-    private void Start()
-    {
-        // Acquire managers from GameManager if not set in inspector
-        inputManager ??= GameManager.Instance?.inputManager;
-        timeManager  ??= GameManager.Instance?.timeManager;
-        
-        if (inputManager == null) DebugHelper.LogError("[PAC] InputManager not found.");
-        if (timeManager == null)  DebugHelper.LogError("[PAC] TimeManager not found.");
-    }
-
+    // The EventBus always exists, so subscribing here needs no manager reference
+    // and works the same for a player placed in the scene or spawned at runtime.
     private void OnEnable()
     {
-        if (inputManager != null) inputManager.OnBasicPressedDSP += HandleBasicPressedDSP;
-        if (timeManager  != null) timeManager.OnBeat += HandleBeat;
+        EventBus.Instance.Subscribe<BasicPressedEvent>(HandleBasicPressed);
+        EventBus.Instance.Subscribe<BeatTickEvent>(HandleBeat);
     }
 
     private void OnDisable()
     {
-        if (inputManager != null) inputManager.OnBasicPressedDSP -= HandleBasicPressedDSP;
-        if (timeManager  != null) timeManager.OnBeat -= HandleBeat;
+        EventBus.Instance.Unsubscribe<BasicPressedEvent>(HandleBasicPressed);
+        EventBus.Instance.Unsubscribe<BeatTickEvent>(HandleBeat);
     }
     #endregion
 
     #region Input & Combo
-    private void HandleBeat(int _)
+    private void HandleBeat(BeatTickEvent _)
     {
         // Beat-based combo inactivity
         if (beatConfig != null && beatConfig.resetOnInactivityBeats > 0)
@@ -83,8 +74,9 @@ public class PlayerAttackController : MonoBehaviour
         }
     }
 
-    private void HandleBasicPressedDSP(double pressDSP)
+    private void HandleBasicPressed(BasicPressedEvent e)
     {
+        double pressDSP = e.dspTime;
         if (attackInProgress) return; // respect the current attack window
         if (pressDSP - lastPressDSP < attackCooldown) return; // basic anti-spam
         lastPressDSP = pressDSP;
@@ -130,6 +122,13 @@ public class PlayerAttackController : MonoBehaviour
             if (strongAimLockCoro != null) StopCoroutine(strongAimLockCoro);
             strongAimLockCoro = StartCoroutine(UnlockAimAfter(windowSec));
         }
+
+        EventBus.Instance.Publish(new AttackStartedEvent
+        {
+            attacker = GetComponent<Entity>(),
+            isStrong = isStrong,
+            onBeat   = onBeat
+        });
 
         // Tell weapon to open its active window; it will collect hits.
         if (weapon != null)

@@ -2,106 +2,81 @@ using System;
 using System.Collections.Generic;
 
 /// <summary>
-/// Global event bus (singleton). Thread-safe pub/sub with snapshot iteration.
-/// CRITICAL: Uses snapshot copy during publish to prevent modification-during-iteration crashes.
+/// Global typed publish/subscribe bus. The single path every gameplay event travels on.
+/// Subscriber lists are copy-on-write arrays: Subscribe/Unsubscribe build a new array,
+/// Publish iterates the array it read. Handlers can therefore (un)subscribe while an
+/// event is being published, and Publish allocates nothing.
 /// </summary>
 public sealed class EventBus
 {
-    #region Singleton
-    private static readonly Lazy<EventBus> _lazy = new(() => new EventBus());
-    public static EventBus Instance => _lazy.Value;
+    public static EventBus Instance { get; } = new EventBus();
     private EventBus() { }
-    #endregion
 
-    #region State
-    private readonly Dictionary<Type, List<Delegate>> _subscribers = new();
-    private readonly object _lock = new();
-    #endregion
+    private readonly Dictionary<Type, Delegate[]> subscribers = new();
+    private readonly object gate = new();
 
-    #region Subscriptions
     public void Subscribe<T>(Action<T> handler)
     {
-        if (handler == null) return;
-        var t = typeof(T);
-        lock (_lock)
+        if (handler == null) throw new ArgumentNullException(nameof(handler));
+        lock (gate)
         {
-            if (!_subscribers.TryGetValue(t, out var list))
+            if (!subscribers.TryGetValue(typeof(T), out var current))
             {
-                list = new List<Delegate>();
-                _subscribers[t] = list;
+                subscribers[typeof(T)] = new Delegate[] { handler };
+                return;
             }
-            if (!list.Contains(handler)) list.Add(handler);
-        }
-    }
+            if (Array.IndexOf(current, handler) >= 0) return; // already subscribed
 
-    /// <summary>
-    /// One-shot subscription: auto-unsubscribes after first invocation
-    /// </summary>
-    public void SubscribeOnce<T>(Action<T> handler)
-    {
-        if (handler == null) return;
-        Action<T> wrapper = null;
-        wrapper = (evt) =>
-        {
-            try { handler(evt); }
-            finally { Unsubscribe<T>(wrapper); }
-        };
-        Subscribe<T>(wrapper);
+            var next = new Delegate[current.Length + 1];
+            Array.Copy(current, next, current.Length);
+            next[current.Length] = handler;
+            subscribers[typeof(T)] = next;
+        }
     }
 
     public void Unsubscribe<T>(Action<T> handler)
     {
-        if (handler == null) return;
-        var t = typeof(T);
-        lock (_lock)
+        if (handler == null) throw new ArgumentNullException(nameof(handler));
+        lock (gate)
         {
-            if (_subscribers.TryGetValue(t, out var list))
+            if (!subscribers.TryGetValue(typeof(T), out var current)) return;
+            int index = Array.IndexOf(current, handler);
+            if (index < 0) return;
+
+            if (current.Length == 1)
             {
-                list.Remove(handler);
-                if (list.Count == 0) _subscribers.Remove(t);
+                subscribers.Remove(typeof(T));
+                return;
             }
+            var next = new Delegate[current.Length - 1];
+            Array.Copy(current, 0, next, 0, index);
+            Array.Copy(current, index + 1, next, index, current.Length - index - 1);
+            subscribers[typeof(T)] = next;
         }
     }
 
     /// <summary>
-    /// DANGER: Clears all subscriptions. Only call during full game reset.
-    /// </summary>
-    public void ClearAll()
-    {
-        lock (_lock) { _subscribers.Clear(); }
-    }
-    #endregion
-
-    #region Publish
-    /// <summary>
-    /// Publishes event to all subscribers. Uses snapshot to prevent modification-during-iteration.
-    /// Exceptions in handlers are caught and logged (doesn't crash other handlers).
+    /// Calls every subscriber of T. A handler that throws is logged and does not stop the others.
     /// </summary>
     public void Publish<T>(T evt)
     {
-        var t = typeof(T);
-        List<Delegate> copy = null;
-        lock (_lock)
+        Delegate[] handlers;
+        lock (gate)
         {
-            if (_subscribers.TryGetValue(t, out var list))
-                copy = new List<Delegate>(list); // Snapshot prevents concurrent modification
+            if (!subscribers.TryGetValue(typeof(T), out handlers)) return;
         }
 
-        if (copy == null) return;
-
-        foreach (var d in copy)
+        foreach (var handler in handlers)
         {
             try
             {
-                ((Action<T>)d)?.Invoke(evt);
+                ((Action<T>)handler).Invoke(evt);
             }
             catch (Exception ex)
             {
-                // Isolated failure: log but continue to other handlers
-                DebugHelper.LogError($"EventBus handler error for {t.Name}: {ex.Message}");
+                DebugHelper.LogError($"EventBus handler error for {typeof(T).Name}: {ex.Message}");
                 DebugHelper.LogException(ex);
             }
         }
     }
-    #endregion
 }

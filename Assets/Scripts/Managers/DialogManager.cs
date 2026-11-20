@@ -15,7 +15,6 @@ public class DialogManager : BaseManager
 
     private DialogueNode[] dialogueNodes;
     private int currentNodeIndex = 0;
-    public InputManager inputManager;
     private bool dialogueActive = false;
     private bool eventBound = false;
 
@@ -23,7 +22,6 @@ public class DialogManager : BaseManager
     public override void Configure(GameManager gm)
     {
         base.Configure(gm);
-        inputManager ??= GetComponent<InputManager>();
         Debug.Log("DialogManager: Configured.");
     }
 
@@ -92,30 +90,19 @@ public class DialogManager : BaseManager
 
     private void SubscribeToInput()
     {
-        if (eventBound) return; // Evita doble suscripción
-
-        if (inputManager == null)
-            inputManager = GameManager.Instance.inputManager;
-
-        if (inputManager != null)
-        {
-            inputManager.OnSubmitPressed += NextNode;
-            eventBound = true;
-            Debug.Log("DialogManager: Suscrito al evento de submit.");
-        }
+        if (eventBound) return;
+        EventBus.Instance.Subscribe<SubmitPressedEvent>(OnSubmitPressed);
+        eventBound = true;
     }
 
     private void UnsubscribeFromInput()
     {
         if (!eventBound) return;
-
-        if (inputManager != null)
-        {
-            inputManager.OnSubmitPressed -= NextNode;
-            eventBound = false;
-            Debug.Log("DialogManager: Desuscrito del evento de submit.");
-        }
+        EventBus.Instance.Unsubscribe<SubmitPressedEvent>(OnSubmitPressed);
+        eventBound = false;
     }
+
+    private void OnSubmitPressed(SubmitPressedEvent _) => NextNode();
 
     public void NextNode()
     {
