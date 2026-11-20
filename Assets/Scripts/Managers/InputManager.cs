@@ -91,11 +91,7 @@ public class InputManager : BaseManager
 
     public override void StopRuntime()
     {
-        if (!runtimeActive)
-        {
-            DebugHelper.LogWarning("InputManager: Runtime not active, nothing to stop.");
-            return;
-        }
+        if (!runtimeActive) return;
         DisableAll();
         runtimeActive = false;
         DebugHelper.LogManager("InputManager: Runtime stopped, all actions disabled.");
@@ -103,6 +99,8 @@ public class InputManager : BaseManager
 
     public override void UnbindEvents()
     {
+        if (!actionsBound) return;
+
         if (basicAction && basicAction.action != null)
             basicAction.action.performed -= HandleBasicPerformed;
 
@@ -116,17 +114,6 @@ public class InputManager : BaseManager
         DebugHelper.LogManager("InputManager: Events unbound successfully.");
     }
 
-    private void OnDisable()
-    {
-        // Safety net for domain reloads/scene changes
-        DebugHelper.LogManager("InputManager: OnDisable called, cleaning up...");
-        if (!actionsBound && !runtimeActive) return;
-        else
-        {
-            DisableAll();
-            UnbindEvents();
-        }
-    }
     #endregion
 
     #region Update Polling

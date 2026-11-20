@@ -49,15 +49,6 @@ public class DialogManager : BaseManager
         UnsubscribeFromInput();
     }
 
-    public override void Teardown()
-    {
-        EndDialogue();
-    }
-
-    private void OnDisable()
-    {
-        Teardown();
-    }
     #endregion
 
     #region Dialogue Methods

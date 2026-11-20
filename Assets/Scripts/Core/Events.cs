@@ -37,12 +37,6 @@ public class MenuEvent {
     public bool open;
 }
 
-// GameplayEvent: simple flag if in combat
-public class GameplayEvent
-{
-    public bool inCombat;
-}
-
 public struct AttackResolved
 {
     public Entity attacker;

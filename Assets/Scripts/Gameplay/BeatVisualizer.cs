@@ -37,6 +37,18 @@ public class BeatVisualizer : MonoBehaviour
             bar.color = baseColor;
     }
 
+    private void OnEnable()
+    {
+        EventBus.Instance.Subscribe<PlayerDiedEvent>(OnPlayerDied);
+    }
+
+    private void OnDisable()
+    {
+        EventBus.Instance.Unsubscribe<PlayerDiedEvent>(OnPlayerDied);
+    }
+
+    private void OnPlayerDied(PlayerDiedEvent _) => SetPaused(true);
+
     private void OnDestroy()
     {
         // Desuscribirse de los eventos
@@ -132,10 +144,7 @@ public class BeatVisualizer : MonoBehaviour
         bar.color = baseColor;
     }
 
-    /// <summary>
-    /// Allows external systems (GameManager) to pause all visual updates, e.g., after player death.
-    /// </summary>
-    public void SetPaused(bool paused)
+    private void SetPaused(bool paused)
     {
         isPaused = paused;
         if (paused)

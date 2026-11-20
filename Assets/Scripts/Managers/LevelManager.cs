@@ -45,7 +45,6 @@ public class LevelManager : BaseManager
     public override void BindEvents()
     {
         DebugHelper.LogManager("LevelManager.BindEvents()");
-        EventBus.Instance?.Subscribe<GameplayEvent>(OnGameplayEvent);
         EventBus.Instance?.Subscribe<PlayerDiedEvent>(OnPlayerDied);
     }
 
@@ -83,11 +82,6 @@ public class LevelManager : BaseManager
         }
     }
 
-    public override void Pause(bool isPaused)
-    {
-        DebugHelper.LogManager($"LevelManager.Pause({isPaused})");
-    }
-
     public override void StopRuntime()
     {
         DebugHelper.LogManager("LevelManager.StopRuntime()");
@@ -97,26 +91,15 @@ public class LevelManager : BaseManager
     public override void UnbindEvents()
     {
         DebugHelper.LogManager("LevelManager.UnbindEvents()");
-        EventBus.Instance?.Unsubscribe<GameplayEvent>(OnGameplayEvent);
         EventBus.Instance?.Unsubscribe<PlayerDiedEvent>(OnPlayerDied);
     }
 
-    public override void Teardown()
-    {
-        DebugHelper.LogManager("LevelManager.Teardown()");
-        StopRuntime();
-        UnbindEvents();
-    }
     #endregion
 
     #region Events
-    private void OnGameplayEvent(GameplayEvent e)
-        => DebugHelper.LogManager($"LevelManager received GameplayEvent: inCombat={e.inCombat}");
-
     private void OnPlayerDied(PlayerDiedEvent e)
     {
-        DebugHelper.LogManager($"Player {e.player.name} died - showing death screen via ComponentHelper");
-        gameManager?.HandlePlayerDeath();
+        DebugHelper.LogManager($"Player {e.player.name} died - showing death screen");
         ShowDeathScreen();
     }
     #endregion
@@ -139,10 +122,8 @@ public class LevelManager : BaseManager
             return null;
         }
 
-        GameManager.Instance?.RegisterPlayer(player);
-
-        // Publish your existing event type
-        EventBus.Instance?.Publish(new PlayerSpawnedEvent { player = player });
+        // RegisterPlayer wires the player and publishes PlayerSpawnedEvent.
+        gameManager.RegisterPlayer(player);
 
         DebugHelper.LogManager("LevelManager: Player spawned and registered.");
         return player;

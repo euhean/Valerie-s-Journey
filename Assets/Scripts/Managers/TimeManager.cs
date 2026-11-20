@@ -63,8 +63,7 @@ public class TimeManager : BaseManager
 
     public override void BindEvents()
     {
-        base.BindEvents();
-        // no external subscriptions required here
+        EventBus.Instance.Subscribe<PlayerDiedEvent>(OnPlayerDied);
     }
 
     public override void StartRuntime()
@@ -91,15 +90,11 @@ public class TimeManager : BaseManager
 
     public override void UnbindEvents()
     {
-        base.UnbindEvents();
-        // nothing to unbind
+        EventBus.Instance.Unsubscribe<PlayerDiedEvent>(OnPlayerDied);
     }
 
-    private void OnDisable()
-    {
-        // Safety cleanup: stop runtime if active
-        StopRuntime();
-    }
+    // The metronome has nothing to drive once the player is dead.
+    private void OnPlayerDied(PlayerDiedEvent _) => StopRuntime();
     #endregion
 
     #region Metronome loop

@@ -1,11 +1,13 @@
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Central orchestrator. Singleton that persists across scenes and wires manager lifecycles.
-/// CRITICAL: Manages full lifecycle: Configure → Initialize → BindEvents → StartRuntime → StopRuntime → UnbindEvents
+/// Central orchestrator. Singleton that persists across scenes.
+/// Every scene load (the first one included) goes through OnSceneLoaded, which is the
+/// single place where managers are discovered, run through
+/// Configure → Initialize → BindEvents, and started.
 /// </summary>
 [DefaultExecutionOrder(-100)]
 public class GameManager : MonoBehaviour
@@ -23,8 +25,8 @@ public class GameManager : MonoBehaviour
     }
     #endregion
 
-    #region Inspector: Managers & Level
-    [Header("Managers (assign in inspector if you want fixed refs)")]
+    #region Managers (discovered in the loaded scene)
+    [Header("Managers (found in the scene on every load)")]
     [SerializeField] public InputManager inputManager;
     [SerializeField] public TimeManager timeManager;
     [SerializeField] public LevelManager levelManager;
@@ -42,16 +44,17 @@ public class GameManager : MonoBehaviour
     #endregion
 
     #region Runtime State
-    [Header("Auto Assigned")]
     public Player MainPlayer { get; private set; }
     public GameState State { get; private set; } = GameState.Boot;
-    bool managersStarted = false;
+
+    // Lifecycle calls run in list order: input, time, level, dialog.
+    private readonly List<BaseManager> managers = new();
     #endregion
 
     #region Unity lifecycle
     private void Awake()
     {
-        // Singleton enforcement - destroy duplicates
+        // A reloaded scene brings its own GameManager; the persistent one wins.
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -59,144 +62,76 @@ public class GameManager : MonoBehaviour
         }
         Instance = this;
         DontDestroyOnLoad(gameObject);
-
-        DebugHelper.LogManager("GameManager initializing...");
     }
 
     private void OnEnable()
     {
+        if (Instance != this) return;
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
     private void OnDisable()
     {
+        if (Instance != this) return;
         SceneManager.sceneLoaded -= OnSceneLoaded;
-        // Safety: cleanup on domain reload/playmode exit
         StopManagers();
-    }
-
-    private IEnumerator Start()
-    {
-        yield return null; // Let scene Awake/OnEnable complete first
-
-        AutoConfigureScene();
-        RunManagerLifecycle();
-
-        // CRITICAL: Entering Gameplay triggers manager StartRuntime()
-        ChangeState(GameState.Gameplay);
     }
     #endregion
 
-    #region Scene handling & lifecycle wiring
+    #region Scene bootstrap
+    /// <summary>
+    /// Unity raises sceneLoaded after every scene object's Awake/OnEnable and before any
+    /// Start, so everything wired here is ready by the time gameplay scripts reach Start.
+    /// </summary>
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        DebugHelper.LogManager($"Scene loaded: {scene.name} — rewire managers");
+        DebugHelper.LogManager($"Scene loaded: {scene.name} — wiring managers");
 
-        // CRITICAL: Stop/unbind before reconfiguring to prevent ghost subscriptions
         StopManagers();
+        DiscoverManagers();
 
-        // Clear scene-local refs so AutoConfigureScene finds new instances
-        inputManager = null;
-        timeManager = null;
-        levelManager = null;
-        dialogManager = null;
+        foreach (var m in managers) m.Configure(this);
+        foreach (var m in managers) m.Initialize();
+        foreach (var m in managers) m.BindEvents();
+
         MainPlayer = null;
-
-        AutoConfigureScene();
-
-        // Restart runtime if we're already in gameplay
-        if (State == GameState.Gameplay)
-        {
-            inputManager?.StartRuntime();
-            timeManager?.StartRuntime();
-            levelManager?.StartRuntime();
-            if (enableDialogManager)
-                dialogManager?.StartRuntime();
-        }
-    }
-
-    private void AutoConfigureScene()
-    {
-        // Fallback discovery: use inspector refs or find in scene
-        inputManager ??= FindFirstObjectByType<InputManager>();
-        timeManager  ??= FindFirstObjectByType<TimeManager>();
-        levelManager ??= FindFirstObjectByType<LevelManager>();
-        if (enableDialogManager)
-            dialogManager ??= FindFirstObjectByType<DialogManager>();
-        else
-            dialogManager = null;
-        MainPlayer   ??= FindFirstObjectByType<Player>();
-
-        // Wire BeatConfig directly (no reflection)
-        if (timeManager != null && beatConfig != null)
-            timeManager.beatConfig = beatConfig;
+        var scenePlayer = FindFirstObjectByType<Player>();
+        if (scenePlayer != null) RegisterPlayer(scenePlayer);
 
         EnsureAudioListener();
+        ChangeState(GameState.Gameplay);
+    }
+
+    private void DiscoverManagers()
+    {
+        inputManager  = FindFirstObjectByType<InputManager>();
+        timeManager   = FindFirstObjectByType<TimeManager>();
+        levelManager  = FindFirstObjectByType<LevelManager>();
+        dialogManager = enableDialogManager ? FindFirstObjectByType<DialogManager>() : null;
+
+        managers.Clear();
+        if (inputManager != null)  managers.Add(inputManager);
+        if (timeManager != null)   managers.Add(timeManager);
+        if (levelManager != null)  managers.Add(levelManager);
+        if (dialogManager != null) managers.Add(dialogManager);
+
+        if (timeManager != null && beatConfig != null)
+            timeManager.beatConfig = beatConfig;
     }
 
     /// <summary>
-    /// Full lifecycle: Configure → Initialize → BindEvents (does NOT start runtime yet)
+    /// Stops and unbinds the managers of the scene that is still alive.
+    /// Managers destroyed by a scene unload have already done both in BaseManager.OnDisable.
     /// </summary>
-    private void RunManagerLifecycle()
+    private void StopManagers()
     {
-        // Phase 1: Configure (inject dependencies)
-        inputManager?.Configure(this);
-        timeManager?.Configure(this);
-        levelManager?.Configure(this);
-        if (enableDialogManager)
-            dialogManager?.Configure(this);
-
-        // Phase 2: Initialize (setup internal state)
-        inputManager?.Initialize();
-        timeManager?.Initialize();
-        levelManager?.Initialize();
-        if (enableDialogManager)
-            dialogManager?.Initialize();
-
-        // Phase 3: BindEvents (subscribe to event bus)
-        inputManager?.BindEvents();
-        timeManager?.BindEvents();
-        levelManager?.BindEvents();
-        if (enableDialogManager)
-            dialogManager?.BindEvents();
-
-        DebugHelper.LogManager("RunManagerLifecycle completed (Configure/Initialize/Bind).");
-        managersStarted = true;
-    }
-    #endregion
-
-    #region Manager stop/unbind helpers
-    public void StopManagers()
-    {
-        if (!managersStarted) return;
-
-        try
+        foreach (var m in managers)
         {
-            // Phase 1: Stop runtime loops (idempotent)
-            inputManager?.StopRuntime();
-            timeManager?.StopRuntime();
-            levelManager?.StopRuntime();
-            if (enableDialogManager)
-                dialogManager?.StopRuntime();
-
-            // Phase 2: Unbind events (each manager unsubscribes itself)
-            inputManager?.UnbindEvents();
-            timeManager?.UnbindEvents();
-            levelManager?.UnbindEvents();
-            if (enableDialogManager)
-                dialogManager?.UnbindEvents();
-
-            // NOTE: Do NOT call EventBus.ClearAll() here!
-            // It would wipe entity subscriptions (Enemy, Player) breaking gameplay.
-            // Managers must clean up their own subscriptions in UnbindEvents().
+            if (m == null) continue;
+            m.StopRuntime();
+            m.UnbindEvents();
         }
-        catch (Exception ex)
-        {
-            DebugHelper.LogWarning($"GameManager.StopManagers() encountered: {ex.Message}");
-        }
-
-        managersStarted = false;
-        DebugHelper.LogManager("GameManager: Managers stopped and unbound.");
+        managers.Clear();
     }
     #endregion
 
@@ -301,51 +236,20 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void UnregisterPlayer(Player p)
-    {
-        if (MainPlayer == p) MainPlayer = null;
-        DebugHelper.LogManager("GameManager: Player unregistered.");
-    }
-
     /// <summary>
-    /// State transition: Gameplay state triggers StartRuntime() on all managers
+    /// Entering Gameplay starts every manager's runtime; leaving it stops them.
+    /// Event bindings stay in place across state changes.
     /// </summary>
     public void ChangeState(GameState next)
     {
         DebugHelper.LogManager($"Game state changed: {State} → {next}");
+        var previous = State;
         State = next;
-        if (State == GameState.Gameplay)
-        {
-            // CRITICAL: Gameplay entry starts manager runtime loops
-            DebugHelper.LogManager("Starting manager runtimes for gameplay...");
-            inputManager?.StartRuntime();
-            timeManager?.StartRuntime();
-            levelManager?.StartRuntime();
-            DebugHelper.LogManager("All manager runtimes started.");
-        }
-        else
-            StopManagers();
-    }
 
-    /// <summary>
-    /// Called when the player dies to halt runtime systems that should not continue looping.
-    /// Leaves InputManager and LevelManager running so UI and restart flows still work.
-    /// </summary>
-    public void HandlePlayerDeath()
-    {
-        if (!managersStarted) return;
-
-        DebugHelper.LogManager("GameManager.HandlePlayerDeath(): stopping non-essential managers.");
-
-        // Keep input + level alive for menu navigation while pausing everything else.
-        timeManager?.StopRuntime();
-        if (enableDialogManager)
-            dialogManager?.StopRuntime();
-
-        // Also pause beat visualizers so they stop logging on-beat checks post-mortem.
-        var visualizers = FindObjectsByType<BeatVisualizer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
-        foreach (var visualizer in visualizers)
-            visualizer.SetPaused(true);
+        if (next == GameState.Gameplay)
+            foreach (var m in managers) m.StartRuntime();
+        else if (previous == GameState.Gameplay)
+            foreach (var m in managers) m.StopRuntime();
     }
     #endregion
 }
