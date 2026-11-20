@@ -86,6 +86,7 @@ public class Player : Entity
     // Dead = gray, alive = normal color. The sprite stays visible when dead as feedback.
     private void UpdateVisuals()
     {
+        AnimationHelper.CancelFlash(SpriteRenderer); // a running hit flash must not restore the old colour
         SpriteRenderer.color = IsAlive ? aliveColor : deadColor;
     }
     #endregion

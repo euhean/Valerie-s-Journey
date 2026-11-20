@@ -13,7 +13,7 @@ public class TimeManager : BaseManager
     public float bpm = 120f;
 
     [Header("Beat Config (assigned by GameManager or in Inspector)")]
-    public BeatConfig beatConfig; // assigned by GameManager.AutoConfigureScene when available
+    public BeatConfig beatConfig; // pushed by GameManager when it has one
 
     [Header("Audio")]
     [Tooltip("Optional AudioClip to play on each beat (metronome sound)")]
