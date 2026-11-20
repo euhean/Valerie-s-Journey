@@ -27,7 +27,6 @@ AssetStoreTools*
 # Unity package manager
 .upm/
 [Pp]ackages/manifest.json.orig
-[Pp]ackages/packages-lock.json
 
 # Unity Asset Database
 [Aa]ssets/StreamingAssets*.meta
