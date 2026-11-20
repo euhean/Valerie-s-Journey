@@ -7,8 +7,8 @@ using UnityEngine;
 /// </summary>
 public class Enemy : Entity
 {
-    private static WaitForSeconds _waitForSeconds0_25 = new(0.25f);
-    private static WaitForSeconds _waitForSeconds1_0 = new(1.0f);
+    private static readonly WaitForSeconds waitForTarget = new(1.0f);
+    private static readonly WaitForFixedUpdate waitForFixedUpdate = new();
     
     #region Inspector: Visuals
     [Header("Enemy Visual Settings")]
@@ -60,12 +60,17 @@ public class Enemy : Entity
         else
             DebugHelper.LogState(() => $"Enemy '{gameObject.name}' missing SpriteRenderer reference.");
 
-        playerTarget ??= GameManager.Instance?.MainPlayer ?? FindFirstObjectByType<Player>();
+        // A player registered before this enemy existed; later ones arrive via PlayerSpawnedEvent.
+        if (playerTarget == null) playerTarget = GameManager.Instance.MainPlayer;
         StartPatrol();
+    }
+
+    private void OnEnable()
+    {
         EventBus.Instance.Subscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
     }
 
-    private void OnDestroy()
+    private void OnDisable()
     {
         EventBus.Instance.Unsubscribe<PlayerSpawnedEvent>(OnPlayerSpawned);
     }
@@ -110,6 +115,7 @@ public class Enemy : Entity
     private void UpdateVisuals()
     {
         if (SpriteRenderer == null) return;
+        AnimationHelper.CancelFlash(SpriteRenderer); // a running hit flash must not restore the old colour
         SpriteRenderer.color = (CurrentState == EntityState.Alive) ? aliveColor : deadColor;
         DebugHelper.LogState(() => $"Enemy '{gameObject.name}' color set to {SpriteRenderer.color} (alive={aliveColor}, dead={deadColor})");
     }
@@ -140,24 +146,11 @@ public class Enemy : Entity
 
         while (CurrentDutyState == DutyState.OnDuty && CurrentState == EntityState.Alive)
         {
-            // Check if target is missing or dead
+            // No living target: idle until PlayerSpawnedEvent hands us one.
             if (playerTarget == null || !playerTarget.IsAlive)
             {
-                // Try to refresh target from GameManager
-                playerTarget = GameManager.Instance?.MainPlayer;
-                
-                // If still null or dead, try search
-                if (playerTarget == null || !playerTarget.IsAlive)
-                {
-                    playerTarget = FindFirstObjectByType<Player>();
-                }
-
-                // If still invalid, wait longer to avoid performance spam
-                if (playerTarget == null || !playerTarget.IsAlive)
-                {
-                    yield return _waitForSeconds1_0;
-                    continue;
-                }
+                yield return waitForTarget;
+                continue;
             }
 
             Vector2 toTarget = playerTarget.transform.position - transform.position;
@@ -166,7 +159,7 @@ public class Enemy : Entity
             if (distance > attackRange)
             {
                 Vector2 dir = toTarget.normalized;
-                Vector2 next = Rigidbody.position + dir * (patrolSpeed * Time.deltaTime);
+                Vector2 next = Rigidbody.position + dir * (patrolSpeed * Time.fixedDeltaTime);
                 Rigidbody.MovePosition(next);
             }
             else
@@ -174,7 +167,8 @@ public class Enemy : Entity
                 TryAttack();
             }
 
-            yield return null;
+            // MovePosition is applied on the physics step, so the loop runs once per step.
+            yield return waitForFixedUpdate;
         }
 
         patrolCoroutine = null;

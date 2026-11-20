@@ -137,37 +137,65 @@ public class AnimationHelper : MonoBehaviour
     }
     #endregion
 
+    #region Flash bookkeeping
+    // One entry per renderer that is flashing: the colour to go back to and the id of the
+    // newest flash. A flash that overlaps another must restore the real base colour, not
+    // the colour of the flash it interrupted.
+    private class FlashState
+    {
+        public Color baseColor;
+        public int flashId;
+    }
+
+    private static readonly System.Collections.Generic.Dictionary<SpriteRenderer, FlashState> activeFlashes = new();
+
+    private static int BeginFlash(SpriteRenderer renderer, Color flashColor)
+    {
+        if (!activeFlashes.TryGetValue(renderer, out var state))
+        {
+            state = new FlashState { baseColor = renderer.color };
+            activeFlashes[renderer] = state;
+        }
+        state.flashId++;
+        renderer.color = flashColor;
+        return state.flashId;
+    }
+
+    private static void EndFlash(SpriteRenderer renderer, int flashId)
+    {
+        // A newer flash, or CancelFlash, has taken over this renderer.
+        if (!activeFlashes.TryGetValue(renderer, out var state) || state.flashId != flashId) return;
+
+        activeFlashes.Remove(renderer);
+        if (renderer != null) renderer.color = state.baseColor;
+    }
+
+    /// <summary>
+    /// Call before setting a renderer's colour yourself (e.g. alive → dead), so a flash
+    /// still in progress does not put the old colour back afterwards.
+    /// </summary>
+    public static void CancelFlash(SpriteRenderer renderer) => activeFlashes.Remove(renderer);
+    #endregion
+
     #region Coroutines (static so any runner can start them)
     private static IEnumerator HitFlashCoroutine(SpriteRenderer renderer, Color flashColor, float duration)
     {
-        if (renderer == null) yield break;
-        Color originalColor = renderer.color;
-        
-        // Safety: if original color is transparent/invalid, default to white
-        if (originalColor.a < 0.01f)
-        {
-            originalColor = Color.white;
-            DebugHelper.LogWarning($"[AnimationHelper] Renderer {renderer.gameObject.name} had transparent color, defaulting to white");
-        }
-        
-        renderer.color = flashColor;
+        int flashId = BeginFlash(renderer, flashColor);
+
         float elapsed = 0f;
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             yield return null;
         }
-        if (renderer != null) renderer.color = originalColor;
+
+        EndFlash(renderer, flashId);
     }
 
     private static IEnumerator StrongHitShakeCoroutine(Transform target, SpriteRenderer renderer, Color flashColor, float duration)
     {
-        if (target == null || renderer == null) yield break;
-
+        int flashId = BeginFlash(renderer, flashColor);
         Vector3 originalPosition = target.position;
-        Color originalColor = renderer.color;
-
-        renderer.color = flashColor;
 
         float shakeDuration = duration * GameConstants.SHAKE_DURATION_MULTIPLIER;
         float shakeIntensity = GameConstants.SHAKE_INTENSITY;
@@ -187,7 +215,7 @@ public class AnimationHelper : MonoBehaviour
         }
 
         if (target != null) target.position = originalPosition;
-        if (renderer != null) renderer.color = originalColor;
+        EndFlash(renderer, flashId);
     }
     #endregion
 

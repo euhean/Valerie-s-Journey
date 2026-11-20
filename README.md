@@ -1,166 +1,171 @@
 # Valerie's Journey
 
-## Overview
+[![Repo checks](https://github.com/euhean/Valerie-s-Journey/actions/workflows/repo-checks.yml/badge.svg)](https://github.com/euhean/Valerie-s-Journey/actions/workflows/repo-checks.yml)
+[![Unity build](https://github.com/euhean/Valerie-s-Journey/actions/workflows/unity-build.yml/badge.svg)](https://github.com/euhean/Valerie-s-Journey/actions/workflows/unity-build.yml)
 
-Valerie's Journey is a 2D top-down pixel‑art shooter dungeon crawler, emphasizing rhythmic combat mechanics, narrative depth, and immersive aesthetics. Inspired by **Hotline Miami** and **Hades**, the project combines intense action, character‑driven storytelling, and musical interaction.
+A 2D top-down action game where you fight to the beat. Attacks that land on the beat build a
+combo, and the fourth one in a row becomes a strong attack. Inspired by **Hotline Miami** for
+the action and **Hades** for the storytelling.
 
-## Technical Specifications
+**Status:** early prototype (Episode 0). One playable test level with Vincent, the first of
+three planned characters. The full design is in the [Game Design Document](docs/GDD.md).
 
-* **Engine:** Unity 2023 LTS (recommended)
-* **Programming Language:** C#
-* **Art Style:** Pixel Art (gameplay) + High‑Fidelity Illustrations (narrative)
-* **Input:** Xbox gamepad via Unity **New Input System** (keyboard/mouse support planned)
-* **Platforms:** PC (initial target)
+## What works today
 
-## Game Flow (Session FSM)
+- **Rhythm combat**: a metronome runs on the audio clock. Every attack press is judged against
+  the nearest beat (±70 ms). Four on-beat attacks in a row trigger a strong attack that deals
+  four times the damage and can't be redirected mid-swing. An off-beat press or a skipped beat
+  breaks the combo.
+- **Movement and aiming**: twin-stick controls. Movement uses acceleration, deceleration, a
+  harder brake when reversing, and a dead zone with hysteresis so the stick doesn't jitter.
+- **Enemies**: they chase the player and attack in melee, flash when hit and shake on strong hits.
+- **Beat HUD**: four bars light up in time with the beat, green or red when you attack on or off it.
+- **Game over and restart**: dying shows a game-over screen; restart reloads the level.
+- **Dialogue**: speaker, text and portrait read from JSON (built, not yet used in the test level).
 
-1. **Main Screen** – splash/logo; press any button
-2. **Menu Selector** – start/continue/options
-3. **Level Preload** – additive load of level scene; pre‑warm pools/shaders/audio
-4. **Cinematic** *(optional)* – skippable; input gated
-5. **Dialogue Scene** – portraits, borders, text FX; can be beat‑aware
-6. **Level Load (Gameplay)** – start music; enable rhythm signals; spawn loop
-7. **Completion Scene** – results, scoring, bonuses (clear before song end)
-8. **Exit or Continue** – next level / retry / back to menu
+## Controls
 
-## Gameplay Concept
+| Action | Gamepad | Keyboard and mouse |
+| --- | --- | --- |
+| Move | Left stick | WASD or arrow keys |
+| Aim | Right stick | — (not yet supported) |
+| Attack | RB | Left click or Enter |
+| Confirm (menus, dialogue) | A | — |
 
-A rhythm‑driven, top‑down action crawler. Players eliminate devilspawn foes with timed attacks, chaining rhythmic combos to unleash powerful specials. Precision and musicality are rewarded.
+## Tech stack
 
-## Core Features
-
-### Musical Mechanics
-
-* Attacks synchronized with song beats (4/4 baseline for Episode 0)
-* Quantized input windows (on‑beat, off‑beat/contratempo)
-* Rhythm combos feed **strong attacks** and scoring multipliers
-
-### Strong Narrative
-
-* Expressive dialogue with high‑fidelity character art (portrait/emotion variants)
-* Dialogue boxes adapt border color, style, and text animation to character and mind state
-
-### Influences
-
-* **Hotline Miami:** fast, stylish action and strong audiovisual identity
-* **Hades:** reactive dialogue system and expressive UI/typography
-
-## Episode 0 – Proof of Concept
-
-* Single playable scene for core mechanics testing
-* Enemy spawns aligned to beat/phrases
-* Level length = one song; clearing early grants **time bonus**
-* Scoring: points for slaying enemies and for completing combos without taking damage
-
-## Combat & Controls
-
-* **Movement:** Left Stick
-* **Aiming:** Right Stick
-* **Basic Attack:** **A** (South button) — steerable mid‑animation
-* **Strong Attack:** **Contextual** (earned via rhythm/combos); not a separate button
-* **Interact:** **X**
-* **Pause:** **Start**
-
-**Targeting rules**
-
-* Basic attacks can be aimed mid‑animation
-* Strong attacks **cannot** be redirected after trigger
-* **Exception:** *Valerie* can aim during her strong attack
-
-## Playable Characters
-
-Three unique playable characters are planned, each with distinct mechanics and narrative arcs. The prototype focuses on:
-
-### Vincent
-
-* **Personality:** Brave and passionate defender of justice and love
-* **Basic:** Sword slash (A), steerable mid‑animation
-* **Strong:** Triggers on the **4th consecutive on‑beat** basic; performs an AOE fire‑cone; direction is **locked at trigger**
-* **Timing pattern:** `b – b – b – s`
-
-### Valerie
-
-* **Personality:** Repressed potential; insecure and sad but determined
-* **Basic:** Shoots tears **a contratempo** (off‑beats)
-* **Strong:** Forward rectangular torrent of magic tears on **beat 4**; **can aim during strong**
-* **Timing pattern:** `– b – b – b s` (4/4: off‑beats for first 3 basics, strong on the 4th)
-
-### Vin
-
-* **Personality:** Aggressive, violent; funny in a rude way
-* **Basic:** Slow melee with **knockback**; lasts **1 beat**
-* **Strong:** **2‑beat spin** AOE; can move while spinning
-* **Timing pattern (two bars of 4/4):** Bar 1 → `b on 1 & 3`; Bar 2 → `b on 1`, then `s spanning beats 3–4`
-
-## Rhythm & Timing
-
-* **Beat Source:** Single authority via audio DSP clock
-* **Quantization Windows:** configurable (e.g., ±30ms / ±60ms / ±90ms)
-* **Latency Calibration:** optional tap‑test stores per‑device offsets
-* **Events:** `OnSubBeat`, `OnBeat`, `OnBar`, `OnPhrase`
-
-## Software Architecture (High‑Level)
-
-* **GameManager** – orchestrator & finite state machine implementing the Game Flow above
-* **Managers (services):**
-
-  * **InputManager** – New Input System wrapper (movement/aim/actions; timestamps for rhythm)
-  * **TimeManager (Rhythm/Conductor)** – BPM, beat grid, quantization, combo validation, beat events
-  * **AudioManager** – music playback (DSP), SFX buses, beat‑aligned cues
-  * **LevelManager** – additive scene loading, pre‑warm, spawns & objectives
-  * **UIManager** – HUD, prompts, tutorial hints
-  * **DialogueManager** – boxes, portraits, borders & text FX
-  * **MenuManager** – main/pause/options; routes to GameManager transitions
-  * **(Optional) PoolManager** – pooled bullets, VFX, enemies
-* **EventSystem (EventBus/Signals):** decouples systems (`GameStateChanged`, `BeatTick`, `SpawnWave`, `DialogueStarted`, `EntityDied`, `ComboChanged`)
-* **BaseManager (abstract):** shared lifecycle contract (`Configure → Initialize → BindEvents → StartRuntime → Pause/Resume → Teardown`); not instantiated directly
-* **Entities (composition‑first):**
-
-  * **Entity (base):** Movement2D, Health, Hit/Hurtboxes, Status, Team, Signal relay
-  * **Player : Entity** (Vincent, Valerie, Vin) – shared locomotion + character‑specific AttackController & dialogue hooks
-  * **Enemy : Entity** – AIController + AttackController (optionally rhythm‑aware)
-  * **NPC : Entity** – interaction + dialogue triggers
-
-## Data & Authoring (ScriptableObjects)
-
-* **Beatmap/ConductorConfig** – BPM, time signature, quantization, latency offsets
-* **CharacterConfig** – movement, portraits/emotions, UI theme
-* **AttackPattern** – shapes, damage, startup/recovery, beat windows, contratempos
-* **LevelConfig** – song reference, spawn sets by bar/section, objective rules, bonuses
-* **EventAssets** – Dialogue/Cinematic/Gameplay events with payloads
-* **UITheme** – border color/type and text animation curves per character & mind state
-
-## Project Structure (proposed)
+| Part | Technology |
+| --- | --- |
+| Engine | Unity 6 (6000.1.15f1), 2D |
+| Language | C# |
+| Input | Unity Input System (actions in `Assets/InputSystem_Actions.inputactions`) |
+| UI | uGUI and TextMesh Pro |
+| Tuning data | ScriptableObjects (`BeatConfig`, `CombatConfig`, `MovementConfig`, `DebugConfig`) |
 
 ```
 Assets/
-  Art/  Audio/  Fonts/  Prefabs/  Scenes/  Shaders/
   Scripts/
-    Core/        (BaseManager, GameManager, EventBus)
-    Managers/    (Input, Time, Audio, Level, UI, Menu, Pool)
-    Entities/    (Entity, Player variants, Enemy, NPC, components)
-    Gameplay/    (Combat, Spawning, Scoring)
-    UI/          (HUD, Dialogue, Widgets)
-  ScriptableObjects/
-    Characters/  Attacks/  Levels/  Events/  UIThemes/  Rhythm/
+    Core/          GameManager (bootstrap), EventBus, events, BaseManager
+    Managers/      InputManager, TimeManager (metronome), LevelManager, DialogManager
+    Entities/      Entity (health and state), Player, Enemy
+    Gameplay/      Movement, attack controller, weapon, animator, beat HUD, camera
+    Configs/       ScriptableObject definitions and their assets
+    Utilities/     Debug logging, constants, helpers
+  Prefab/          Player, Enemy, walls, camera, HUD and dialogue canvases
+  Scenes/          Test0 (the playable level), plus work-in-progress scenes
+  Resources/       Dialogue JSON, portraits, DebugConfig
+docs/              Game design document and code audit
 ```
 
-## Quick Start (Unity + Xbox New Input System)
+## Getting started
 
-1. **Create Project:** Unity 2023 LTS → 2D template. Install **Input System**, **2D Pixel Perfect**, **TextMesh Pro** (Addressables optional). Project Settings → **Active Input Handling = Input System** (restart).
-2. **Sprites & Camera:** Import as **Point (no filter)**, Compression **None**. Add **Pixel Perfect Camera**; set PPU to art grid.
-3. **Scenes:** `App_Boot` (managers/EventBus), `UI_Global` (HUD & dialogue), `EP0_Level` (graybox). Start with `App_Boot` and load others **additively**.
-4. **Input Actions:** Create asset with `Move(LS)`, `Aim(RS)`, `Basic(A)`, `Interact(X)`, `Pause(Start)`. Use **PlayerInput** and route to **InputManager**.
-5. **Preload Handshake:** LevelManager pre‑warms pools/materials/fonts; AudioManager queues song; TimeManager locks to DSP; signal **ReadyToStart** → enter PreGame/Cinematic/Dialogue/Gameplay per flow.
+1. Install **Unity 6000.1.15f1** through Unity Hub (other versions may upgrade or break the project).
+2. Clone the repository and open the folder in Unity Hub. Unity installs the packages listed in
+   `Packages/manifest.json` on first open.
+3. Open `Assets/Scenes/Test0.unity` and press Play. A gamepad is recommended.
 
-## Roadmap (placeholder)
+Tuning lives in the config assets under `Assets/Scripts/Configs/`: tempo window and combo rules in
+`BeatConfig`, damage and attack window in `CombatConfig`, player movement in `MovementConfig`. The
+tempo itself (90 BPM in Test0) is set on the `TimeManager` object in the scene. Log categories are
+switched on and off in `Assets/Resources/DebugConfig`.
 
-* Episode 0 vertical slice → rhythm calibration → dialogue polish → content expansion
+## Checks
 
-## License & Credits
+GitHub Actions runs two workflows:
 
-MIT license.
+- **Repo checks** (every push, under a minute, no Unity needed): every asset has its `.meta`
+  file and every `.meta` has its asset, no two files differ only in letter case, no leftover
+  merge-conflict markers, the package manifest is committed, and the build scene list is valid.
+  Run it locally with `python .github/scripts/check_repo.py`.
+- **Unity build** (pushes to `main` and pull requests): opens the project in Unity, compiles it
+  and builds the game for Windows. The build can be downloaded from the run's page for 14 days.
 
----
+## Design decisions
 
-This README is a living **GDD placeholder** and will evolve alongside the project.
+- **The beat runs on the audio clock.** The metronome uses `AudioSettings.dspTime`, which counts
+  samples the audio hardware has played, instead of `Time.time`. Frame time drifts against audio
+  over a few minutes; the audio clock can't. If a frame hitches, the metronome fires every beat it
+  missed rather than shifting the grid.
+- **One bootstrap path.** `GameManager` persists across scenes and wires the level every time a
+  scene loads, the first one included: it finds the managers, runs their lifecycle
+  (Configure → Initialize → BindEvents → StartRuntime) and hands the player its dependencies.
+  Unity raises the scene-loaded event after every object's `OnEnable` and before any `Start`, so
+  everything is wired before gameplay code runs. A restart takes exactly the same path as a fresh
+  start.
+- **Dependencies flow one way.** `GameManager` pushes managers and configs into the player's
+  components; gameplay code never reaches back into `GameManager` to fetch them.
+- **Everything talks through one event bus.** Beats, button presses, attacks, damage, spawns and
+  deaths are typed events on `EventBus`. A new system (a combo counter, hit sounds, a score)
+  subscribes to the events it needs without changing the code that publishes them, and the
+  publisher never needs to know who's listening.
+- **Each job has one owner.** The movement script is the only one that aims the weapon; the attack
+  controller decides when an attack window opens and closes; the weapon only detects hits. When
+  two scripts used to do the same job, they disagreed (a strong attack could be redirected because
+  one of them ignored the aim lock).
+- **Tuning in assets, not code.** Combat, timing and movement values live in ScriptableObjects so
+  they can be changed in the Inspector, even during play, without recompiling.
+
+## How beat judgement works
+
+A press counts as on the beat when it falls within ±70 ms (`BeatConfig.onBeatWindowSec`) of the
+**nearest** beat, which can be the one that just played or the one about to play. Players tend to
+press slightly early, so comparing only with the last beat would reject every press that
+anticipates the next one.
+
+The metronome keeps the grid it's on: the time and index of the last beat, and the time of the
+next. The input system stamps every press with the audio clock, and `TimeManager` measures the
+press against both beats:
+
+```csharp
+double sinceLast = dspTime - lastBeatDSP;
+double untilNext = nextBeatDSP - dspTime;
+bool nextIsNearer = lastBeatIndex < 0 || untilNext < sinceLast;
+
+double distance = Math.Abs(nextIsNearer ? untilNext : sinceLast);
+if (distance > OnBeatWindow) return false;
+
+beatIndex = nextIsNearer ? lastBeatIndex + 1 : lastBeatIndex;
+```
+
+It returns which beat the press belonged to, and the combo is counted in those beat numbers rather
+than with timers. An on-beat press extends the streak, unless a beat was skipped since the last
+one, in which case it starts a new streak of one. A second press on the same beat adds nothing.
+The fourth press in a row becomes a strong attack and spends the combo:
+
+```csharp
+if (onBeat && beatIndex != lastOnBeatIndex)
+{
+    int missedBeats = beatIndex - lastOnBeatIndex - 1;
+    bool streakBroken = InactivityBeats > 0 && missedBeats >= InactivityBeats;
+
+    lastOnBeatIndex = beatIndex;
+    SetStreak(streakBroken ? 1 : onBeatStreak + 1);
+
+    if (onBeatStreak >= ComboStreak)
+    {
+        isStrong = true;
+        SetStreak(0); // the strong attack spends the combo
+    }
+}
+```
+
+A combo can also break while you wait: on every beat, the attack controller checks whether the
+previous beat's window closed without an on-beat press. It checks the previous beat, not the
+current one, because the current beat's window is still open for a slightly late press.
+
+**Not modelled yet:** music (only a metronome click), a per-device latency offset, and the
+off-beat pattern Valerie's design needs.
+
+## Roadmap
+
+- Music playback with the beat grid locked to the song, and latency calibration.
+- Game flow: main menu, pause, dialogue scenes and level completion.
+- Valerie and Vin, each with their own rhythm pattern, and Vincent's fire-cone strong attack.
+- Scoring, combo HUD and enemy waves aligned to the music.
+
+The full list, with the reasoning behind each item, is in the
+[code audit](docs/CODE_AUDIT.md#6-next-commits-in-suggested-order).
+
+## License
+
+MIT. See [LICENSE](LICENSE).

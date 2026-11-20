@@ -1,18 +1,17 @@
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine;
 
 /// <summary>
-/// Generic weapon: timed attack window, overlap-based hits, damage application,
-/// and per-hit DamageApplied events. Works with PlayerAttackController which
-/// opens the window and later consumes the hit list.
+/// Hit detection for a melee weapon. PlayerAttackController opens and closes the attack
+/// window; while it is open, each living enemy the trigger touches is damaged once and a
+/// DamageApplied event is published for it. The weapon is a child of the entity wielding it.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(BoxCollider2D), typeof(SpriteRenderer))]
 public class Weapon : MonoBehaviour
 {
     #region Inspector
-
-    [Header("Optional Config (overrides GameConstants damages if set)")]
+    [Header("Optional Config (overrides the fallback damages below if set)")]
     public CombatConfig combatConfig;
 
     [Header("Weapon Settings (fallback if no CombatConfig)")]
@@ -29,20 +28,14 @@ public class Weapon : MonoBehaviour
     [Header("References (auto-filled)")]
     [SerializeField] private BoxCollider2D weaponCollider;
     [SerializeField] private SpriteRenderer weaponRenderer;
-    private Entity ownerEntity;
-
     #endregion
 
     #region Runtime State
-
-    // Current window state
-    private bool isAttacking = false;
+    private Entity owner;
+    private bool windowOpen = false;
     private bool currentAttackIsStrong = false;
-
-    // Per-window hit tracking
-    private readonly HashSet<Entity> hitSet = new HashSet<Entity>();
-    private readonly List<Entity> hitList = new List<Entity>();
-
+    private bool currentAttackOnBeat = false;
+    private readonly List<Entity> hitTargets = new List<Entity>(); // entities hit in the current window
     #endregion
 
 #if UNITY_EDITOR
@@ -55,206 +48,101 @@ public class Weapon : MonoBehaviour
 #endif
 
     #region Unity Lifecycle
-
     private void Awake()
     {
-        gameObject.tag = "Weapon";
-        weaponCollider = weaponCollider ? weaponCollider : GetComponent<BoxCollider2D>();
-        weaponRenderer = weaponRenderer ? weaponRenderer : GetComponent<SpriteRenderer>();    
-        
-        // Auto-assign owner entity if not set
-        if (ownerEntity == null)
-        {
-            // Try centralized reference first, then fallback to search
-            ownerEntity = GameManager.Instance?.MainPlayer;
-            if (ownerEntity == null)
-                ownerEntity = FindFirstObjectByType<Player>();
+        if (!weaponCollider) weaponCollider = GetComponent<BoxCollider2D>();
+        if (!weaponRenderer) weaponRenderer = GetComponent<SpriteRenderer>();
+        owner = GetComponentInParent<Entity>();
 
-            if (ownerEntity != null)
-                DebugHelper.LogManager($"[Weapon] Auto-assigned owner: {ownerEntity.name}");
-            else
-                DebugHelper.LogWarning("[Weapon] No owner Entity found. Use weapon.SetOwner() or assign a Player to the scene.");
-        }
-        
-        Debug.Assert(weaponCollider && weaponRenderer, "Weapon requires BoxCollider2D + SpriteRenderer.");
+        // The trigger only exists while an attack window is open.
         weaponCollider.isTrigger = true;
-
-        // start hidden/off-duty — controlled by PlayerAttackController
-        SetVisualState(false);
-        if (weaponCollider) weaponCollider.enabled = false;
+        weaponCollider.enabled = false;
+        SetOwnerDutyState(false); // hidden until the owner goes on duty
     }
-
     #endregion
 
-    #region Public API (called by PlayerAttackController)
-
+    #region Public API
     /// <summary>
-    /// Sets the owner entity for this weapon. Call this after instantiating the weapon.
+    /// Starts collecting hits. Enabling the collider here (instead of leaving it on)
+    /// makes Unity report enemies that are already overlapping as new contacts.
     /// </summary>
-    public void SetOwner(Entity owner)
+    public void OpenAttackWindow(bool isStrongAttack, bool onBeat)
     {
-        ownerEntity = owner;
-    }
-
-    /// <summary>
-    /// Opens a timed attack window. During the window, overlapping entities are damaged once.
-    /// </summary>
-    public void StartAttackWindow(bool isStrongAttack, float windowSeconds)
-    {
-        // Require owner entity to be alive and on duty to prevent null attacker in events
-        bool canAttack = ownerEntity != null && 
-                        ownerEntity.CurrentState == Entity.EntityState.Alive && 
-                        ownerEntity.CurrentDutyState == Entity.DutyState.OnDuty;
-        
-        if (!canAttack)
-            return;
-
-        // Validate windowSeconds to prevent NaN, negative, or zero values from breaking the system
-        if (float.IsNaN(windowSeconds) || float.IsInfinity(windowSeconds) || windowSeconds <= 0f)
-        {
-            DebugHelper.LogWarning($"[Weapon] Invalid windowSeconds={windowSeconds}, clamping to 0.01f");
-            windowSeconds = 0.01f; // Minimum safe duration
-        }
-
-        // Begin window
-        isAttacking = true;
+        windowOpen = true;
         currentAttackIsStrong = isStrongAttack;
-        hitSet.Clear();
-        hitList.Clear();
+        currentAttackOnBeat = onBeat;
+        hitTargets.Clear();
 
-        // Visual flash to indicate attack
-        var effectColor = isStrongAttack ? GameConstants.ORANGE_COLOR : attackColor;
-        AnimationHelper.ShowHitFlash(weaponRenderer, effectColor, windowSeconds);
-
-        // Weapon should be visible & colliding while on duty
-        SetVisualState(true);
-        if (weaponCollider) weaponCollider.enabled = true;
-
-        // Close window after duration
-        CancelInvoke(nameof(ResetAttackState));
-        Invoke(nameof(ResetAttackState), windowSeconds);
+        weaponCollider.enabled = true;
+        weaponRenderer.color = isStrongAttack ? GameConstants.ORANGE_COLOR : attackColor;
     }
 
-    /// <summary>
-    /// Returns the list of entities hit during the last window and clears the internal list.
-    /// Safe to call after the window completes.
-    /// </summary>
-    public IReadOnlyList<Entity> ConsumeHitTargets()
+    /// <summary>Stops collecting hits and returns the entities hit during the window.</summary>
+    public IReadOnlyList<Entity> CloseAttackWindow()
     {
-        // Return a copy and clear internal list to avoid accidental reuse
-        var copy = new List<Entity>(hitList);
-        hitList.Clear();
-        hitSet.Clear();
-        return copy;
+        windowOpen = false;
+        weaponCollider.enabled = false;
+        weaponRenderer.color = onDutyColor;
+
+        var hits = new List<Entity>(hitTargets);
+        hitTargets.Clear();
+        return hits;
     }
 
-    /// <summary>
-    /// Aiming helper. Rotate and offset the weapon along aim direction.
-    /// Call from movement/aim system when not aim-locked.
-    /// </summary>
+    /// <summary>Rotates and offsets the weapon along the aim direction.</summary>
     public void UpdateAiming(Vector2 aimDirection)
     {
-        if (ownerEntity == null ||
-            ownerEntity.CurrentState != Entity.EntityState.Alive ||
-            ownerEntity.CurrentDutyState != Entity.DutyState.OnDuty)
-            return;
+        if (!owner.IsAlive || !owner.IsOnDuty) return;
 
         float threshSq = GameConstants.WEAPON_AIM_THRESHOLD * GameConstants.WEAPON_AIM_THRESHOLD;
-        if (aimDirection.sqrMagnitude > threshSq)
-        {
-            // Rotate weapon to face aim direction
-            float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
-            transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
+        if (aimDirection.sqrMagnitude <= threshSq) return;
 
-            // Position weapon at a fixed distance in the aim direction
-            Vector2 normalized = aimDirection.normalized;
-            Vector3 offset = new Vector3(normalized.x, normalized.y, 0f) * weaponDistance;
-            transform.localPosition = offset;
-        }
+        float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
+        transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
+
+        Vector2 normalized = aimDirection.normalized;
+        transform.localPosition = new Vector3(normalized.x, normalized.y, 0f) * weaponDistance;
     }
 
-    /// <summary>
-    /// Called by Player/Entity when their duty state changes (show/hide the weapon).
-    /// </summary>
+    /// <summary>The owner calls this when its duty state changes: the weapon shows only while on duty.</summary>
     public void SetOwnerDutyState(bool isOnDuty)
     {
-        SetVisualState(isOnDuty);
-        if (weaponCollider) weaponCollider.enabled = isOnDuty;
+        weaponRenderer.enabled = isOnDuty;
+        weaponRenderer.color = isOnDuty ? onDutyColor : offDutyColor;
     }
-
-    /// <summary>
-    /// Immediately cancels any active attack window, resets state, and clears hit lists.
-    /// Call this when the attack is interrupted (e.g. player takes damage).
-    /// </summary>
-    public void AbortAttack()
-    {
-        CancelInvoke(nameof(ResetAttackState));
-        isAttacking = false;
-        hitSet.Clear();
-        hitList.Clear();
-        ResetAttackState(); // Ensure visuals/collider return to normal state
-    }
-
     #endregion
 
     #region Collision
+    // Enter covers contacts that begin during the window; Stay covers a blade that is
+    // steered onto a target that Unity already reported.
+    private void OnTriggerEnter2D(Collider2D other) => TryHit(other);
+    private void OnTriggerStay2D(Collider2D other) => TryHit(other);
 
-    private void OnTriggerStay2D(Collider2D other)
+    private void TryHit(Collider2D other)
     {
-        if (!isAttacking) return;
+        if (!windowOpen) return;
         if (!other.CompareTag("Enemy")) return;
-        if (!other.TryGetComponent<Entity>(out var targetEntity)) return;
-        if (hitSet.Contains(targetEntity)) return;
+        if (!other.TryGetComponent<Entity>(out var target)) return;
+        if (!target.IsAlive || hitTargets.Contains(target)) return;
 
-        // Determine damage
-        float dmg = currentAttackIsStrong
+        float damage = currentAttackIsStrong
             ? (combatConfig != null ? combatConfig.strongDamage : strongDamage)
             : (combatConfig != null ? combatConfig.basicDamage  : basicDamage);
 
-        // Apply damage
-        float before = targetEntity.Health;
-        targetEntity.TakeDamage(dmg);
-        bool killingBlow = targetEntity.Health <= 0f;
+        float before = target.Health;
+        target.TakeDamage(damage);
+        hitTargets.Add(target);
 
-        // Track hit
-        hitSet.Add(targetEntity);
-        hitList.Add(targetEntity);
-
-        // Notify
         EventBus.Instance.Publish(new DamageApplied(
-            attacker: ownerEntity,
-            target:   targetEntity,
-            amount:   dmg,
-            killingBlow: killingBlow,
-            isStrong: currentAttackIsStrong,
-            onBeat:   false // PlayerAttackController knows onBeat; emit there in AttackResolved
+            attacker:    owner,
+            target:      target,
+            amount:      damage,
+            killingBlow: !target.IsAlive,
+            isStrong:    currentAttackIsStrong,
+            onBeat:      currentAttackOnBeat
         ));
 
-        DebugHelper.LogCombat(() => $"[Weapon] Hit {targetEntity.name} for {dmg} ({before:F1}->{targetEntity.Health:F1})");
+        DebugHelper.LogCombat(() => $"[Weapon] Hit {target.name} for {damage} ({before:F1}->{target.Health:F1})");
     }
-
-    #endregion
-
-    #region Helpers
-
-    private void ResetAttackState()
-    {
-        isAttacking = false;
-
-        bool show = ownerEntity != null &&
-                    ownerEntity.CurrentState == Entity.EntityState.Alive &&
-                    ownerEntity.CurrentDutyState == Entity.DutyState.OnDuty;
-
-        SetVisualState(show);
-        if (weaponCollider) weaponCollider.enabled = show;
-    }
-
-    private void SetVisualState(bool isOnDuty)
-    {
-        if (!weaponRenderer) return;
-        weaponRenderer.enabled = isOnDuty;
-        weaponRenderer.color   = isOnDuty ? onDutyColor : offDutyColor;
-    }
-
     #endregion
 }

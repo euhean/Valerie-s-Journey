@@ -24,7 +24,7 @@ public class PlayerAnimator : MonoBehaviour
 
     private Animator animator;
     private Rigidbody2D rb;
-    private InputManager inputManager;
+    private Entity owner;
     
     private string currentState;
     private bool isAttacking;
@@ -34,32 +34,24 @@ public class PlayerAnimator : MonoBehaviour
     {
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
+        owner = GetComponent<Entity>();
     }
 
-    private void Start()
+    private void OnEnable()
     {
-        // Subscribe to input via GameManager
-        inputManager = GameManager.Instance?.inputManager;
-        if (inputManager != null)
-        {
-            inputManager.OnBasicPressedDSP += HandleAttackInput;
-        }
-        else
-        {
-            DebugHelper.LogWarning("[PlayerAnimator] InputManager not found in GameManager.");
-        }
+        EventBus.Instance.Subscribe<AttackStartedEvent>(HandleAttackStarted);
     }
 
-    private void OnDestroy()
+    private void OnDisable()
     {
-        if (inputManager != null)
-        {
-            inputManager.OnBasicPressedDSP -= HandleAttackInput;
-        }
+        EventBus.Instance.Unsubscribe<AttackStartedEvent>(HandleAttackStarted);
     }
 
-    private void HandleAttackInput(double dspTime)
+    // Plays only for attacks the combat system accepted, not for every button press.
+    private void HandleAttackStarted(AttackStartedEvent e)
     {
+        if (e.attacker != owner) return;
+
         // Restart routine to allow "mashing" to reset the buffer window if desired
         if (isAttacking) StopCoroutine(nameof(AttackRoutine));
         StartCoroutine(nameof(AttackRoutine));

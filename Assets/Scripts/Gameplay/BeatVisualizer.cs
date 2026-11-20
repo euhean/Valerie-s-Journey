@@ -1,159 +1,91 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using System.Collections;
 
+/// <summary>
+/// Beat HUD: one bar lights up per metronome beat, and the current bar turns
+/// green/red when an attack starts on/off beat. It shows the combat system's own
+/// judgement (AttackStartedEvent.onBeat) instead of re-judging the input itself.
+/// </summary>
 public class BeatVisualizer : MonoBehaviour
 {
     [Header("UI References")]
-    public Image[] bars; // las 4 barras
-    public Color beatColor = Color.yellow;   // color cuando "golpea" el beat (solo música)
-    public Color baseColor = Color.white;    // color normal
-    public Color onBeatColor = Color.green;  // color cuando input es ON-BEAT (ACIERTO)
-    public Color offBeatColor = Color.red;   // color cuando input es OFF-BEAT (FALLO)
+    public Image[] bars;
+    public Color beatColor = Color.yellow;   // bar lit by the beat itself
+    public Color baseColor = Color.white;    // idle bar
+    public Color onBeatColor = Color.green;  // attack landed on the beat
+    public Color offBeatColor = Color.red;   // attack was off the beat
     public float flashDuration = 0.3f;
 
-    private TimeManager timeManager;
-    private InputManager inputManager;
     private int currentBar = 0;
-    private bool inputProcessedThisFrame = false;
-    private Coroutine activeCoroutine; // Guarda la corrutina activa
-    private bool isPaused = false;
+    private bool attackShownThisBeat = false;
+    private Coroutine activeFlash;
 
-    [System.Obsolete]
     private void Start()
     {
-        timeManager = FindObjectOfType<TimeManager>();
-        inputManager = FindObjectOfType<InputManager>();
-
-        // Suscribirse a los eventos
-        if (timeManager != null)
-            timeManager.OnBeat += HandleBeat;
-
-        if (inputManager != null)
-            inputManager.OnBasicPressedDSP += HandleInput;
-
-        // Inicializar barras con color base
-        foreach (var bar in bars)
-            bar.color = baseColor;
+        ResetBars();
     }
 
-    private void OnDestroy()
+    private void OnEnable()
     {
-        // Desuscribirse de los eventos
-        if (timeManager != null)
-            timeManager.OnBeat -= HandleBeat;
-
-        if (inputManager != null)
-            inputManager.OnBasicPressedDSP -= HandleInput;
+        EventBus.Instance.Subscribe<BeatTickEvent>(HandleBeat);
+        EventBus.Instance.Subscribe<AttackStartedEvent>(HandleAttackStarted);
+        EventBus.Instance.Subscribe<PlayerDiedEvent>(HandlePlayerDied);
     }
 
-    /// <summary>
-    /// Se ejecuta cada vez que hay un beat en la música
-    /// </summary>
-    private void HandleBeat(int beatIndex)
+    private void OnDisable()
     {
-        if (isPaused || bars.Length == 0) return;
+        EventBus.Instance.Unsubscribe<BeatTickEvent>(HandleBeat);
+        EventBus.Instance.Unsubscribe<AttackStartedEvent>(HandleAttackStarted);
+        EventBus.Instance.Unsubscribe<PlayerDiedEvent>(HandlePlayerDied);
+    }
 
-        // Si no presionaste nada en el beat anterior, la barra actual se pone ROJA (fallo)
-        if (!inputProcessedThisFrame)
-        {
-            FlashBar(bars[currentBar], offBeatColor);
-            Debug.Log($"✗ FALLO: No presionaste en el beat - Barra[{currentBar}] en ROJO");
-        }
+    private void HandleBeat(BeatTickEvent _)
+    {
+        if (bars.Length == 0) return;
 
-        // Pasar a la siguiente barra
         currentBar = (currentBar + 1) % bars.Length;
-
-        // La nueva barra se pone AMARILLA
         FlashBar(bars[currentBar], beatColor);
-
-        // Resetea el flag de input para permitir nuevo input en el siguiente beat
-        inputProcessedThisFrame = false;
+        attackShownThisBeat = false;
     }
 
-    /// <summary>
-    /// Se ejecuta cuando el jugador presiona el botón Basic Action
-    /// Solo procesa UN input por beat
-    /// </summary>
-    private void HandleInput(double dspTime)
+    // Only the first attack of a beat is shown.
+    private void HandleAttackStarted(AttackStartedEvent e)
     {
-        if (isPaused || timeManager == null || bars.Length == 0)
-            return;
+        if (bars.Length == 0 || attackShownThisBeat) return;
 
-        // Si ya procesamos un input en este beat, ignora los demás
-        if (inputProcessedThisFrame)
-        {
-            Debug.Log("⚠️ Input ignorado: Ya hay un input procesado en este beat");
-            return;
-        }
-
-        // Verificar si el input está dentro de la ventana "on beat"
-        bool onBeat = timeManager.IsOnBeat(dspTime);
-
-        // Elegir color según si fue on-beat u off-beat
-        Color colorToFlash = onBeat ? onBeatColor : offBeatColor;
-        string resultText = onBeat ? "✓ ACIERTO (ON-BEAT)" : "✗ FALLO (OFF-BEAT)";
-
-        // Cambiar la barra actual al color del resultado
-        FlashBar(bars[currentBar], colorToFlash);
-
-        // Marcar que ya procesamos un input en este beat
-        inputProcessedThisFrame = true;
-
-        // Debug
-        Debug.Log($"{resultText} - DSP: {dspTime:F4}");
+        FlashBar(bars[currentBar], e.onBeat ? onBeatColor : offBeatColor);
+        attackShownThisBeat = true;
     }
 
-    /// <summary>
-    /// Ejecuta un flash de color en una barra (detiene cualquier corrutina anterior)
-    /// </summary>
+    private void HandlePlayerDied(PlayerDiedEvent _)
+    {
+        if (activeFlash != null)
+        {
+            StopCoroutine(activeFlash);
+            activeFlash = null;
+        }
+        ResetBars();
+    }
+
     private void FlashBar(Image bar, Color flashColor)
     {
-        if (isPaused || bar == null) return;
-        // Detener la corrutina anterior si existe
-        if (activeCoroutine != null)
-            StopCoroutine(activeCoroutine);
-
-        // Resetear todos los colores a blanco primero
-        foreach (var b in bars)
-            b.color = baseColor;
-
-        // Iniciar la nueva corrutina
-        activeCoroutine = StartCoroutine(FlashCoroutine(bar, flashColor));
+        if (activeFlash != null) StopCoroutine(activeFlash);
+        ResetBars();
+        activeFlash = StartCoroutine(FlashCoroutine(bar, flashColor));
     }
 
-    /// <summary>
-    /// Corrutina que anima el flash de color
-    /// </summary>
     private IEnumerator FlashCoroutine(Image bar, Color flashColor)
     {
         bar.color = flashColor;
         yield return new WaitForSeconds(flashDuration);
         bar.color = baseColor;
+        activeFlash = null;
     }
 
-    /// <summary>
-    /// Allows external systems (GameManager) to pause all visual updates, e.g., after player death.
-    /// </summary>
-    public void SetPaused(bool paused)
+    private void ResetBars()
     {
-        isPaused = paused;
-        if (paused)
-        {
-            if (activeCoroutine != null)
-            {
-                StopCoroutine(activeCoroutine);
-                activeCoroutine = null;
-            }
-
-            if (bars != null)
-            {
-                foreach (var bar in bars)
-                {
-                    if (bar != null)
-                        bar.color = baseColor;
-                }
-            }
-        }
+        foreach (var bar in bars)
+            bar.color = baseColor;
     }
 }

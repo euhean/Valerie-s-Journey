@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 
-/// <summary>
-/// Basic spawn events used by LevelManager (and future systems).
-/// </summary>
+// ---- Entity lifecycle ----
+
 public class PlayerSpawnedEvent {
     public Player player;
 }
@@ -15,34 +14,50 @@ public class EnemySpawnedEvent {
     public Enemy enemy;
 }
 
-// User-requested event payloads
-public class DialogueEvent {
-    public string speaker;
-    public string text;
-}
+// ---- Input edges (published by InputManager) ----
 
-public class CinematicEvent {
-    public string id;
-    public float duration;
-}
-
-// Small text-only event
-public class TextEvent {
-    public string text;
-    public float duration = 1f;
-}
-
-public class MenuEvent {
-    public string menuId;
-    public bool open;
-}
-
-// GameplayEvent: simple flag if in combat
-public class GameplayEvent
+/// <summary>The basic-action button went down. dspTime is the audio clock at the press.</summary>
+public struct BasicPressedEvent
 {
-    public bool inCombat;
+    public double dspTime;
 }
 
+public struct SubmitPressedEvent { }
+public struct CancelPressedEvent { }
+
+// ---- Tempo (published by TimeManager) ----
+
+/// <summary>One metronome beat. dspTime is the beat's scheduled time on the audio clock.</summary>
+public struct BeatTickEvent
+{
+    public int beatIndex;
+    public double dspTime;
+}
+
+// ---- Combat ----
+
+/// <summary>
+/// An attack window just opened (the press was accepted). Subscribe for swing
+/// animation, swing sound and beat feedback.
+/// </summary>
+public struct AttackStartedEvent
+{
+    public Entity attacker;
+    public bool   isStrong;
+    public bool   onBeat;
+}
+
+/// <summary>The on-beat streak changed. streak == 0 means the combo was reset or spent.</summary>
+public struct ComboChangedEvent
+{
+    public int streak;
+    public int streakForStrong;
+}
+
+/// <summary>
+/// Fired once per swing when its attack window closes, with everything the swing hit.
+/// Subscribe for scoring and swing-level effects.
+/// </summary>
 public struct AttackResolved
 {
     public Entity attacker;
@@ -63,6 +78,10 @@ public struct AttackResolved
     }
 }
 
+/// <summary>
+/// Fired at the moment of impact, once per target. A swing that hits N targets
+/// produces N DamageApplied and then one AttackResolved.
+/// </summary>
 public struct DamageApplied
 {
     public Entity attacker;
