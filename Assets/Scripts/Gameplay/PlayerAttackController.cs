@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Handles attack timing, combo rules, aim lock during strong, and communicates with weapon.
-/// This is a controller script that goes on the Player - it finds and controls a separate Weapon object.
+/// Owns attack timing: judges each press against the beat, applies the combo rules,
+/// and opens/closes the weapon's attack window. The Weapon only detects hits.
 /// </summary>
 public class PlayerAttackController : MonoBehaviour
 {
@@ -13,11 +13,11 @@ public class PlayerAttackController : MonoBehaviour
     public TimeManager timeManager; // queried for on-beat judgement
 
     [Header("Configs (ScriptableObjects)")]
-    public CombatConfig combatConfig; // basicDamage, strongDamage, comboStreak, attackWindow
-    public BeatConfig beatConfig;     // onBeat window, reset policies
+    public CombatConfig combatConfig; // comboStreak, attackWindow
+    public BeatConfig beatConfig;     // reset policies
 
-    [Header("Weapon Reference (found automatically if null)")]
-    public Weapon weapon; // The weapon this controller commands
+    [Header("Weapon (child of the player)")]
+    public Weapon weapon;
 
     [Header("Cooldowns")]
     [Tooltip("Seconds between button presses being accepted (prevents button mashing spam)")]
@@ -25,28 +25,24 @@ public class PlayerAttackController : MonoBehaviour
     #endregion
 
     #region Private State
+    private Entity owner;
+    private Coroutine attackRoutine; // non-null while an attack window is open
     private bool isAimLocked = false;
-    private bool attackInProgress = false;
 
     private double lastPressDSP = -9999.0;
     private int onBeatStreak = 0;
     private int lastOnBeatIndex = -1; // beat index of the latest on-beat press
 
+    private float AttackWindow => combatConfig != null ? combatConfig.attackWindow : GameConstants.ATTACK_VISUAL_DURATION;
     private int ComboStreak => combatConfig != null ? combatConfig.comboStreak : GameConstants.COMBO_STREAK_FOR_STRONG;
     private int InactivityBeats => beatConfig != null ? beatConfig.resetOnInactivityBeats : 0;
     private bool ResetOnOffBeat => beatConfig == null || beatConfig.resetOnOffBeat;
-    private Coroutine strongAimLockCoro;
     #endregion
 
     #region Unity Lifecycle
     private void Awake()
     {
-        // Use centralized weapon fallback logic
-        weapon ??= ComponentHelper.FindWeaponFallback("PAC");
-        
-        // Configs are optional - GameConstants provide fallback values
-        if (combatConfig == null) DebugHelper.LogManager("[PAC] Using GameConstants for combat values (CombatConfig not assigned).");
-        if (beatConfig == null) DebugHelper.LogManager("[PAC] Using GameConstants for beat values (BeatConfig not assigned).");
+        owner = GetComponent<Entity>();
     }
 
     // The EventBus always exists, so subscribing here needs no manager reference
@@ -61,6 +57,7 @@ public class PlayerAttackController : MonoBehaviour
     {
         EventBus.Instance.Unsubscribe<BasicPressedEvent>(HandleBasicPressed);
         EventBus.Instance.Unsubscribe<BeatTickEvent>(HandleBeat);
+        AbortAttack(); // Unity stops our coroutines on disable; don't leave a window open
     }
     #endregion
 
@@ -81,7 +78,8 @@ public class PlayerAttackController : MonoBehaviour
 
     private void HandleBasicPressed(BasicPressedEvent e)
     {
-        if (attackInProgress) return; // respect the current attack window
+        if (!owner.IsAlive || !owner.IsOnDuty) return;
+        if (attackRoutine != null) return; // respect the current attack window
         if (e.dspTime - lastPressDSP < attackCooldown) return; // basic anti-spam
         lastPressDSP = e.dspTime;
 
@@ -107,7 +105,7 @@ public class PlayerAttackController : MonoBehaviour
             ResetCombo("off-beat");
         }
 
-        StartCoroutine(DoAttackWindow(onBeat, isStrong));
+        attackRoutine = StartCoroutine(DoAttackWindow(onBeat, isStrong));
     }
 
     private void SetStreak(int value)
@@ -118,86 +116,44 @@ public class PlayerAttackController : MonoBehaviour
     }
     #endregion
 
-    #region Attack Window Coroutine
+    #region Attack Window
     private IEnumerator DoAttackWindow(bool onBeat, bool isStrong)
     {
-        attackInProgress = true;
+        // GDD: a strong attack cannot be redirected after it triggers; a basic one can.
+        isAimLocked = isStrong;
+        weapon.OpenAttackWindow(isStrong, onBeat);
+        EventBus.Instance.Publish(new AttackStartedEvent { attacker = owner, isStrong = isStrong, onBeat = onBeat });
 
-        float windowSec = combatConfig != null ? combatConfig.attackWindow : 0.20f;
+        yield return new WaitForSeconds(AttackWindow);
 
-        // Lock aim for strong only during the window
-        if (isStrong)
-        {
-            isAimLocked = true;
-            if (strongAimLockCoro != null) StopCoroutine(strongAimLockCoro);
-            strongAimLockCoro = StartCoroutine(UnlockAimAfter(windowSec));
-        }
+        IReadOnlyList<Entity> hits = weapon.CloseAttackWindow();
+        isAimLocked = false;
+        attackRoutine = null;
 
-        EventBus.Instance.Publish(new AttackStartedEvent
-        {
-            attacker = GetComponent<Entity>(),
-            isStrong = isStrong,
-            onBeat   = onBeat
-        });
-
-        // Tell weapon to open its active window; it will collect hits.
-        if (weapon != null)
-        {
-            weapon.StartAttackWindow(isStrong, windowSec);
-        }
-
-        // Wait for the window to finish
-        yield return new WaitForSeconds(windowSec);
-
-        // Consume hit targets from the weapon for this window
-        IReadOnlyList<Entity> hits = weapon?.ConsumeHitTargets();
-
-        bool success = hits != null && hits.Count > 0;
-
-        // Emit AttackResolved (DamageApplied will be emitted per-hit by Weapon during the window)
-        var evt = new AttackResolved(
-            attacker: GetComponent<Entity>(),
-            success: success,
+        EventBus.Instance.Publish(new AttackResolved(
+            attacker: owner,
+            success: hits.Count > 0,
             isStrong: isStrong,
             onBeat: onBeat,
-            hitTargets: hits ?? (IReadOnlyList<Entity>)new List<Entity>(0),
+            hitTargets: hits,
             dspTime: AudioSettings.dspTime
-        );
-        EventBus.Instance.Publish(evt);
-
-        attackInProgress = false;
-    }
-
-    private IEnumerator UnlockAimAfter(float seconds)
-    {
-        yield return new WaitForSeconds(seconds);
-        isAimLocked = false;
+        ));
     }
     #endregion
 
-    #region Public API (for movement/aim systems)
-    /// <summary>Called by Player to set the weapon reference.</summary>
-    public void SetWeapon(Weapon w) => weapon = w;
-
-    /// <summary>Call from your aiming code to know if aim updates should be ignored.</summary>
+    #region Public API
+    /// <summary>Movement/aim code asks this before steering the weapon.</summary>
     public bool IsAimLocked() => isAimLocked;
-    
-    /// <summary>Public method to abort attack (unlock aim immediately).</summary>
+
+    /// <summary>Cancels the open attack window, if any. No AttackResolved is published for it.</summary>
     public void AbortAttack()
     {
-        if (strongAimLockCoro != null)
-        {
-            StopCoroutine(strongAimLockCoro);
-            strongAimLockCoro = null;
-        }
-        isAimLocked = false;
-        attackInProgress = false;
+        if (attackRoutine == null) return;
 
-        // Ensure weapon stops collecting hits immediately
-        if (weapon != null)
-        {
-            weapon.AbortAttack();
-        }
+        StopCoroutine(attackRoutine);
+        attackRoutine = null;
+        isAimLocked = false;
+        if (weapon != null) weapon.CloseAttackWindow(); // the weapon may already be destroyed on scene unload
     }
 
     public void ResetCombo(string reason)

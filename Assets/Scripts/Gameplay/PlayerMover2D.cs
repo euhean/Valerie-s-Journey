@@ -2,20 +2,21 @@ using UnityEngine;
 
 /// <summary>
 /// 2D movement with hysteresis dead-zone and smooth accel/decel.
-/// Also forwards aim to Weapon when not aim-locked by PlayerAttackController.
+/// Sole owner of weapon aiming: forwards the aim stick to the Weapon unless
+/// PlayerAttackController has locked the aim (strong attack).
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerMover2D : MonoBehaviour
 {
-    [Header("Manager Refs (optional; fetched from GameManager if null)")]
+    [Header("Manager Refs (wired by GameManager.RegisterPlayer)")]
     public InputManager inputManager;
 
     [Header("Configs (optional)")]
     public MovementConfig movementConfig; // if null, falls back to GameConstants
 
-    [Header("Components")]
-    public Weapon weapon;                         // optional: found in children if null
-    public PlayerAttackController attackController; // optional: found on self if null
+    [Header("Components (assigned in the Player prefab)")]
+    public Weapon weapon;
+    public PlayerAttackController attackController;
 
     private Rigidbody2D rb;
     private Vector2 velocity;
@@ -32,20 +33,11 @@ public class PlayerMover2D : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-
-        // Use centralized weapon fallback logic
-        weapon ??= ComponentHelper.FindWeaponFallback("PlayerMover2D");
-        
-        // Find attack controller on same GameObject
-        attackController ??= GetComponent<PlayerAttackController>();
-        if (attackController == null)
-            DebugHelper.LogWarning("[PlayerMover2D] No PlayerAttackController found. Add one to this GameObject or assign it in Inspector.");
     }
 
     private void Start()
     {
-        inputManager ??= GameManager.Instance?.inputManager;
-        if (!inputManager) DebugHelper.LogError("[PlayerMover2D] InputManager missing.");
+        if (!inputManager) DebugHelper.LogError("[PlayerMover2D] InputManager missing — was the player registered with GameManager?");
     }
 
     private void FixedUpdate()
@@ -94,15 +86,7 @@ public class PlayerMover2D : MonoBehaviour
         rb.linearVelocity = velocity;
 
         // ----- AIM FORWARDING -----
-        // Skip aim updates if strong attack is locking aim
-        if (weapon)
-        {
-            bool aimLocked = attackController && attackController.IsAimLocked();
-            if (!aimLocked)
-            {
-                Vector2 aim = inputManager.Aim; // for KB+Mouse this should be set by InputManager as world dir
-                weapon.UpdateAiming(aim);
-            }
-        }
+        if (!attackController.IsAimLocked())
+            weapon.UpdateAiming(inputManager.Aim);
     }
 }

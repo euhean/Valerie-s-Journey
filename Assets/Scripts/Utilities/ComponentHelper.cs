@@ -9,42 +9,6 @@ using UnityEngine.InputSystem.UI;
 /// </summary>
 public static class ComponentHelper
 {
-    #region Weapon Fallback Assignment
-
-    /// <summary>
-    /// Centralized weapon finding logic to eliminate duplication.
-    /// Uses tag-based search first, then scene-wide search.
-    /// </summary>
-    public static Weapon FindWeaponFallback(string debugContext = "")
-    {
-        // Strategy 1: Tag-based (fastest)
-        try
-        {
-            GameObject weaponObj = GameObject.FindGameObjectWithTag("Weapon");
-            if (weaponObj != null)
-            {
-                Weapon w = weaponObj.GetComponent<Weapon>();
-                if (w != null) return w;
-            }
-        }
-        catch (UnityException ex)
-        {
-            DebugHelper.LogWarning($"[{debugContext}] Tag 'Weapon' not defined: {ex.Message}. Falling back to scene search.");
-        }
-
-        // Strategy 2: Scene-wide search
-        Weapon weapon = Object.FindFirstObjectByType<Weapon>();
-        if (weapon != null) return weapon;
-
-        // Strategy 3: Not found
-        if (!string.IsNullOrEmpty(debugContext))
-            DebugHelper.LogWarning($"[{debugContext}] No Weapon found. Create a separate Weapon GameObject in the scene or assign it in Inspector.");
-        
-        return null;
-    }
-
-    #endregion
-
     #region Collider <-> Sprite
 
     /// <summary>

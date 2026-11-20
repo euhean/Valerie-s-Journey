@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -157,82 +156,30 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Register spawned player and wire all dependencies (managers + configs).
-    /// IDEMPOTENT: skips if same player already registered.
+    /// The single place where a player (placed in the scene or spawned) gets its external
+    /// dependencies. Managers always come from here; a config already assigned on the
+    /// prefab is kept, otherwise the global one is used.
     /// </summary>
     public void RegisterPlayer(Player p)
     {
-        if (p == null) return;
-        
-        // Idempotency: prevent duplicate registration
-        if (MainPlayer == p)
-        {
-            DebugHelper.LogManager($"[GameManager] Player {p.name} already registered. Skipping.");
-            return;
-        }
+        if (p == null || MainPlayer == p) return;
 
         MainPlayer = p;
         DebugHelper.LogManager(() => $"MainPlayer registered: {p.name}");
 
-        Weapon sceneWeapon = FindFirstObjectByType<Weapon>();
-        WirePlayerManagers(p);
-        WirePlayerComponents(p, sceneWeapon);
-        WireWeaponSystem(p, sceneWeapon);
-        PublishPlayerSpawnEvent(p);
-    }
-
-    private void WirePlayerManagers(Player p)
-    {
-        // Inject manager refs into player
-        p.inputManager ??= inputManager;
-        p.timeManager  ??= timeManager;
-    }
-
-    private void WirePlayerComponents(Player p, Weapon sceneWeapon)
-    {
-        // Wire movement: inject InputManager + MovementConfig
         var mover = p.GetComponent<PlayerMover2D>();
-        if (mover != null)
-        {
-            mover.inputManager ??= inputManager;
-            mover.movementConfig ??= movementConfig;
-        }
+        mover.inputManager = inputManager;
+        if (mover.movementConfig == null) mover.movementConfig = movementConfig;
 
-        // Wire attack controller: inject managers + configs
         var pac = p.GetComponent<PlayerAttackController>();
-        if (pac != null)
-        {
-            pac.timeManager = timeManager;
-            pac.combatConfig ??= combatConfig;
-            pac.beatConfig   ??= beatConfig;
-            
-            // CRITICAL: Auto-assign weapon if missing (prevents null access)
-            pac.weapon ??= sceneWeapon;
-            if (pac.weapon != null)
-                DebugHelper.LogManager($"[GameManager] Auto-assigned weapon {pac.weapon.name} to PlayerAttackController");
-        }
-    }
+        pac.timeManager = timeManager;
+        if (pac.combatConfig == null) pac.combatConfig = combatConfig;
+        if (pac.beatConfig == null)   pac.beatConfig = beatConfig;
 
-    private void WireWeaponSystem(Player p, Weapon playerWeapon)
-    {
-        if (playerWeapon != null)
-        {
-            playerWeapon.combatConfig ??= combatConfig;
-            playerWeapon.SetOwner(p); // Weapon needs owner for damage events
-            DebugHelper.LogManager($"[GameManager] Set {p.name} as owner of {playerWeapon.name}");
-        }
-    }
+        var weapon = p.GetComponentInChildren<Weapon>(true);
+        if (weapon.combatConfig == null) weapon.combatConfig = combatConfig;
 
-    private void PublishPlayerSpawnEvent(Player p)
-    {
-        try
-        {
-            EventBus.Instance?.Publish(new PlayerSpawnedEvent { player = p });
-        }
-        catch (Exception ex)
-        {
-            DebugHelper.LogWarning($"GameManager.RegisterPlayer: EventBus publish failed: {ex.Message}");
-        }
+        EventBus.Instance.Publish(new PlayerSpawnedEvent { player = p });
     }
 
     /// <summary>

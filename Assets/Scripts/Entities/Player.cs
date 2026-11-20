@@ -1,9 +1,11 @@
 using UnityEngine;
 
 /// <summary>
-/// Player entity. Integrates InputManager, TimeManager, and handles visual feedback.
-/// CRITICAL: Wired by GameManager during RegisterPlayer(). Death publishes PlayerDiedEvent.
+/// Player entity: health, death and visuals. Movement, aiming and attacks live in
+/// PlayerMover2D / PlayerAttackController / Weapon. GameManager.RegisterPlayer wires
+/// those components to the managers and configs.
 /// </summary>
+[RequireComponent(typeof(PlayerMover2D), typeof(PlayerAttackController))]
 public class Player : Entity
 {
     #region Inspector: Visual Settings
@@ -12,14 +14,8 @@ public class Player : Entity
     [SerializeField] private Color deadColor = new Color(0.5f, 0.5f, 0.5f);
     #endregion
 
-    #region Dependencies (injected by GameManager)
-    [HideInInspector] public InputManager inputManager;
-    [HideInInspector] public TimeManager timeManager;
-    #endregion
-
-    #region Components (auto-discovered or assigned)
+    #region Components
     private Weapon weapon;
-    private PlayerMover2D mover;
     private PlayerAttackController attackController;
     #endregion
 
@@ -27,43 +23,23 @@ public class Player : Entity
     protected override void Awake()
     {
         base.Awake();
-        // Component discovery with fallback
-        weapon = ComponentHelper.FindWeaponFallback("Player");
-        mover = GetComponent<PlayerMover2D>();
+        weapon = GetComponentInChildren<Weapon>();
         attackController = GetComponent<PlayerAttackController>();
     }
 
     protected override void Start()
     {
         base.Start(); // Auto-fit collider to sprite
-
-        // CRITICAL: Wire managers into components (fallback if GameManager hasn't run yet)
-        if (inputManager == null || timeManager == null)
-        {
-            var gm = GameManager.Instance;
-            inputManager = gm?.inputManager;
-            timeManager = gm?.timeManager;
-        }
-
-        if (mover != null)
-            mover.inputManager = inputManager;
-
-        // Initialize duty state after wiring complete
         SetDutyState(DutyState.OnDuty);
-        UpdateVisuals(); // Apply initial visual state
+        UpdateVisuals();
     }
+    #endregion
 
-    private void Update()
+    #region Duty
+    public override void SetDutyState(DutyState newState)
     {
-        // Weapon aiming: track cursor/stick direction when alive and on-duty
-        if (!IsAlive || !IsOnDuty) return;
-
-        if (weapon != null && inputManager != null)
-        {
-            Vector2 aimDir = inputManager.Aim;
-            if (aimDir.sqrMagnitude > 0.01f)
-                weapon.UpdateAiming(aimDir);
-        }
+        base.SetDutyState(newState);
+        weapon.SetOwnerDutyState(IsOnDuty);
     }
     #endregion
 
@@ -75,61 +51,42 @@ public class Player : Entity
         base.TakeDamage(amount);
 
         // Damage feedback: flash sprite and reset combo
-        if (IsAlive && SpriteRenderer != null)
-            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR, 
+        if (IsAlive)
+            AnimationHelper.ShowHitFlash(SpriteRenderer, GameConstants.PLAYER_DAMAGE_FLASH_COLOR,
                                          GameConstants.PLAYER_DAMAGE_FLASH_DURATION, this);
 
-        if (attackController != null)
-            attackController.ResetCombo("took damage");
+        attackController.ResetCombo("took damage");
     }
 
     /// <summary>
-    /// CRITICAL: Death flow: disable physics, toggle duty, publish death event, update visuals.
+    /// Death flow: base.Die goes off duty and switches to Dead (which refreshes visuals),
+    /// then the open attack is cancelled, physics is switched off and PlayerDiedEvent is published.
     /// </summary>
     protected override void Die()
     {
         if (!IsAlive) return;
 
-        DebugHelper.LogState(() => $"Player {gameObject.name} died");
         base.Die();
+        attackController.AbortAttack();
 
-        // Disable interaction: turn off collider and physics
-        if (BoxCollider != null) BoxCollider.enabled = false;
-        if (Rigidbody != null)
-        {
-            Rigidbody.linearVelocity = Vector2.zero;
-            Rigidbody.simulated = false;
-        }
+        BoxCollider.enabled = false;
+        Rigidbody.linearVelocity = Vector2.zero;
+        Rigidbody.simulated = false;
 
-        SetDutyState(DutyState.OffDuty);
-
-        // Notify game systems of death
-        EventBus.Instance?.Publish(new PlayerDiedEvent { player = this });
-
-        UpdateVisuals(); // Apply death visuals
+        EventBus.Instance.Publish(new PlayerDiedEvent { player = this });
     }
     #endregion
 
     #region Visuals
-    /// <summary>
-    /// State change callback: refresh visuals on transitions
-    /// </summary>
     protected override void OnStateChanged(EntityState from, EntityState to)
     {
-        base.OnStateChanged(from, to);
         UpdateVisuals();
     }
 
-    /// <summary>
-    /// Enforces visual state: sprite visibility, color based on alive/dead state.
-    /// </summary>
+    // Dead = gray, alive = normal color. The sprite stays visible when dead as feedback.
     private void UpdateVisuals()
     {
-        if (SpriteRenderer == null) return;
-
-        // Dead = gray and semi-transparent, Alive = normal color
         SpriteRenderer.color = IsAlive ? aliveColor : deadColor;
-        SpriteRenderer.enabled = true; // Keep visible even when dead (for feedback)
     }
     #endregion
 }
