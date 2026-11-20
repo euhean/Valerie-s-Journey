@@ -6,7 +6,7 @@ Valerie's Journey is a 2D top-down pixel‑art shooter dungeon crawler, emphasiz
 
 ## Technical Specifications
 
-* **Engine:** Unity 2023 LTS (recommended)
+* **Engine:** Unity 6 (6000.1.15f1 — see `ProjectSettings/ProjectVersion.txt`)
 * **Programming Language:** C#
 * **Art Style:** Pixel Art (gameplay) + High‑Fidelity Illustrations (narrative)
 * **Input:** Xbox gamepad via Unity **New Input System** (keyboard/mouse support planned)
