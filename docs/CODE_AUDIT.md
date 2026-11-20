@@ -1,7 +1,7 @@
 # Valerie's Journey — code audit and refactor log
 
 Branch: `refactor/lifecycle-rhythm-audit` (6 commits on top of `main` @ `e43eefd`).
-Unity version: 6000.1.15f1. GDD used for comparison: `README.md`.
+Unity version: 6000.1.15f1. GDD used for comparison: `docs/GDD.md` (the README at the time).
 
 > **Not yet run in Unity.** The changes were written and reviewed without the Editor
 > (no Unity install was available). The C# was syntax-checked with a parser, not
