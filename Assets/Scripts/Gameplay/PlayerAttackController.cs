@@ -30,7 +30,11 @@ public class PlayerAttackController : MonoBehaviour
 
     private double lastPressDSP = -9999.0;
     private int onBeatStreak = 0;
-    private int beatsSinceLastOnBeatPress = 0;
+    private int lastOnBeatIndex = -1; // beat index of the latest on-beat press
+
+    private int ComboStreak => combatConfig != null ? combatConfig.comboStreak : GameConstants.COMBO_STREAK_FOR_STRONG;
+    private int InactivityBeats => beatConfig != null ? beatConfig.resetOnInactivityBeats : 0;
+    private bool ResetOnOffBeat => beatConfig == null || beatConfig.resetOnOffBeat;
     private Coroutine strongAimLockCoro;
     #endregion
 
@@ -61,50 +65,56 @@ public class PlayerAttackController : MonoBehaviour
     #endregion
 
     #region Input & Combo
-    private void HandleBeat(BeatTickEvent _)
+    // Combo rules, counted in beat indices:
+    // - An on-beat press extends the streak. Reaching ComboStreak makes that attack strong.
+    // - Skipping InactivityBeats or more beats between on-beat presses restarts the streak.
+    // - An off-beat press still attacks, and resets the streak when ResetOnOffBeat is set.
+
+    private void HandleBeat(BeatTickEvent e)
     {
-        // Beat-based combo inactivity
-        if (beatConfig != null && beatConfig.resetOnInactivityBeats > 0)
-        {
-            beatsSinceLastOnBeatPress++;
-            if (beatsSinceLastOnBeatPress >= beatConfig.resetOnInactivityBeats)
-            {
-                ResetCombo("inactivity");
-            }
-        }
+        if (onBeatStreak == 0 || InactivityBeats <= 0) return;
+
+        // When beat N ticks, the window of beat N-1 has closed (the window of N is still open).
+        int missedBeats = (e.beatIndex - 1) - lastOnBeatIndex;
+        if (missedBeats >= InactivityBeats) ResetCombo("inactivity");
     }
 
     private void HandleBasicPressed(BasicPressedEvent e)
     {
-        double pressDSP = e.dspTime;
         if (attackInProgress) return; // respect the current attack window
-        if (pressDSP - lastPressDSP < attackCooldown) return; // basic anti-spam
-        lastPressDSP = pressDSP;
+        if (e.dspTime - lastPressDSP < attackCooldown) return; // basic anti-spam
+        lastPressDSP = e.dspTime;
 
-        bool onBeat = timeManager != null && timeManager.IsOnBeat(pressDSP);
-
-        // Combo rules:
-        // - Off-beat press: allowed, but resets streak immediately (never contributes to strong)
-        // - On-beat press: increments streak; if reaches comboStreak -> strong attack and reset afterwards
+        bool onBeat = timeManager.TryGetBeatAt(e.dspTime, out int beatIndex);
         bool isStrong = false;
 
-        if (!onBeat)
+        if (onBeat && beatIndex != lastOnBeatIndex) // a second press on the same beat adds nothing
         {
-            if (beatConfig == null || beatConfig.resetOnOffBeat) ResetCombo("off-beat");
-        }
-        else
-        {
-            beatsSinceLastOnBeatPress = 0;
-            onBeatStreak++;
-            if (combatConfig != null && onBeatStreak >= combatConfig.comboStreak)
+            int missedBeats = beatIndex - lastOnBeatIndex - 1;
+            bool streakBroken = InactivityBeats > 0 && missedBeats >= InactivityBeats;
+
+            lastOnBeatIndex = beatIndex;
+            SetStreak(streakBroken ? 1 : onBeatStreak + 1);
+
+            if (onBeatStreak >= ComboStreak)
             {
                 isStrong = true;
-                // Reset streak after strong resolves (done at the end of the window)
+                SetStreak(0); // the strong attack spends the combo
             }
         }
+        else if (!onBeat && ResetOnOffBeat)
+        {
+            ResetCombo("off-beat");
+        }
 
-        // Run the attack window
         StartCoroutine(DoAttackWindow(onBeat, isStrong));
+    }
+
+    private void SetStreak(int value)
+    {
+        if (onBeatStreak == value) return;
+        onBeatStreak = value;
+        EventBus.Instance.Publish(new ComboChangedEvent { streak = value, streakForStrong = ComboStreak });
     }
     #endregion
 
@@ -155,9 +165,6 @@ public class PlayerAttackController : MonoBehaviour
         );
         EventBus.Instance.Publish(evt);
 
-        // Reset strong combo after a strong attack fires
-        if (isStrong) onBeatStreak = 0;
-
         attackInProgress = false;
     }
 
@@ -196,8 +203,7 @@ public class PlayerAttackController : MonoBehaviour
     public void ResetCombo(string reason)
     {
         if (onBeatStreak != 0) DebugHelper.LogCombat($"[PAC] Combo reset ({reason}).");
-        onBeatStreak = 0;
-        beatsSinceLastOnBeatPress = 0;
+        SetStreak(0);
     }
     #endregion
 }

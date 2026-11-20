@@ -23,14 +23,14 @@ public class TimeManager : BaseManager
     
     private AudioSource audioSource;
 
-    // Internal timing state
-    private bool running = false;
+    // Timing state. The beat grid is: lastBeatDSP (beat lastBeatIndex) and nextBeatDSP (the one after).
     private Coroutine metronomeCoroutine;
+    private double lastBeatDSP = 0.0;
     private double nextBeatDSP = 0.0;
-    private int beatIndex = 0;
-    private double lastBeatDSP = -9999.0;
-    // Small guard to prevent spamming StartRuntime
-    private bool runtimeStarted = false;
+    private int lastBeatIndex = -1; // -1 until the first beat has fired
+
+    private double SecondsPerBeat => 60.0 / Math.Max(1f, bpm);
+    private float OnBeatWindow => beatConfig != null ? Mathf.Abs(beatConfig.onBeatWindowSec) : 0.07f;
 
     #region BaseManager surface (minimal)
     public override void Configure(GameManager gm)
@@ -65,23 +65,16 @@ public class TimeManager : BaseManager
 
     public override void StartRuntime()
     {
-        if (runtimeStarted) return;
-        runtimeStarted = true;
-        // Start the metronome loop using this MonoBehaviour
+        if (metronomeCoroutine != null) return;
         metronomeCoroutine = StartCoroutine(MetronomeLoop());
         DebugHelper.LogManager("[TimeManager] Runtime started.");
     }
 
     public override void StopRuntime()
     {
-        if (!runtimeStarted) return;
-        runtimeStarted = false;
-        if (metronomeCoroutine != null)
-        {
-            StopCoroutine(metronomeCoroutine);
-            metronomeCoroutine = null;
-        }
-        running = false;
+        if (metronomeCoroutine == null) return;
+        StopCoroutine(metronomeCoroutine);
+        metronomeCoroutine = null;
         DebugHelper.LogManager("[TimeManager] Runtime stopped.");
     }
 
@@ -97,34 +90,22 @@ public class TimeManager : BaseManager
     #region Metronome loop
     private IEnumerator MetronomeLoop()
     {
-        running = true;
-        beatIndex = 0;
-        lastBeatDSP = AudioSettings.dspTime;
-        double dspNow = AudioSettings.dspTime;
-        double secondsPerBeat = 60.0 / Math.Max(1f, bpm);
-        nextBeatDSP = dspNow + secondsPerBeat * 0.1; // small offset to avoid immediately firing
+        lastBeatIndex = -1;
+        nextBeatDSP = AudioSettings.dspTime + SecondsPerBeat * 0.1; // small lead-in before beat 0
 
-        while (running)
+        while (true)
         {
-            dspNow = AudioSettings.dspTime;
-
-            // Catch-up loop (in case of hiccups)
-            while (dspNow + 0.0001 >= nextBeatDSP)
+            // Fires every beat that is due, so a frame hitch never drops or shifts a beat.
+            while (AudioSettings.dspTime >= nextBeatDSP)
             {
-                // Fire beat
+                lastBeatIndex++;
                 lastBeatDSP = nextBeatDSP;
-                
-                // Play beat sound if available
+                nextBeatDSP += SecondsPerBeat;
+
                 if (beatSound != null && audioSource != null)
                     audioSource.PlayOneShot(beatSound);
-                
-                EventBus.Instance.Publish(new BeatTickEvent { beatIndex = beatIndex, dspTime = lastBeatDSP });
 
-                beatIndex++;
-                // schedule next
-                secondsPerBeat = 60.0 / Math.Max(1f, bpm);
-                nextBeatDSP += secondsPerBeat;
-                dspNow = AudioSettings.dspTime;
+                EventBus.Instance.Publish(new BeatTickEvent { beatIndex = lastBeatIndex, dspTime = lastBeatDSP });
             }
 
             yield return null;
@@ -132,34 +113,26 @@ public class TimeManager : BaseManager
     }
     #endregion
 
-    #region Query helpers (for gameplay)
+    #region Beat judgement
     /// <summary>
-    /// Returns true if the supplied DSP timestamp is within the configured on-beat window.
-    /// beatConfig.onBeatWindowSec represents the half-window (±).
+    /// Judges a timestamp against the NEAREST beat: the last one fired or the next one due.
+    /// A press slightly early is as on-beat as a press slightly late.
+    /// Returns true and that beat's index when the timestamp is within ±onBeatWindowSec of it.
     /// </summary>
-    public bool IsOnBeat(double dspTime)
+    public bool TryGetBeatAt(double dspTime, out int beatIndex)
     {
-        if (lastBeatDSP < 0) return false;
-        float tol = beatConfig != null ? Mathf.Abs(beatConfig.onBeatWindowSec) : 0.07f;
-        return Math.Abs(dspTime - lastBeatDSP) <= tol;
-    }
+        beatIndex = -1;
+        if (metronomeCoroutine == null) return false;
 
-    /// <summary>
-    /// Returns true if the timestamp is clearly off-beat but within a larger contra window.
-    /// This is useful for contratempo checks (optional).
-    /// </summary>
-    public bool IsOffBeatContratempo(double dspTime)
-    {
-        if (lastBeatDSP < 0) return false;
-        float onBeatTol = beatConfig != null ? Mathf.Abs(beatConfig.onBeatWindowSec) : 0.07f;
-        float contraTol = onBeatTol * 2.0f; // example: twice the on-beat window
-        double diff = Math.Abs(dspTime - lastBeatDSP);
-        return diff > onBeatTol && diff <= contraTol;
-    }
+        double sinceLast = dspTime - lastBeatDSP;
+        double untilNext = nextBeatDSP - dspTime;
+        bool nextIsNearer = lastBeatIndex < 0 || untilNext < sinceLast;
 
-    /// <summary>
-    /// Exposes the last beat's DSP timestamp for debugging or alignment.
-    /// </summary>
-    public double LastBeatDSP => lastBeatDSP;
+        double distance = Math.Abs(nextIsNearer ? untilNext : sinceLast);
+        if (distance > OnBeatWindow) return false;
+
+        beatIndex = nextIsNearer ? lastBeatIndex + 1 : lastBeatIndex;
+        return true;
+    }
     #endregion
 }

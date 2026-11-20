@@ -47,6 +47,13 @@ public struct AttackStartedEvent
     public bool   onBeat;
 }
 
+/// <summary>The on-beat streak changed. streak == 0 means the combo was reset or spent.</summary>
+public struct ComboChangedEvent
+{
+    public int streak;
+    public int streakForStrong;
+}
+
 /// <summary>
 /// Fired once per swing when its attack window closes, with everything the swing hit.
 /// Subscribe for scoring and swing-level effects.
