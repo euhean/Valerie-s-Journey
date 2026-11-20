@@ -46,25 +46,12 @@ unity-*.log
 [Aa]udio[Cc]ache/
 [Aa]udio[Ii]mporter[Cc]ache/
 
-# TextMeshPro generated files
-[Aa]ssets/TextMesh*Pro/
-
 # 2D Pixel Perfect camera cache
 [Aa]ssets/[Pp]ixel[Pp]erfect*/
 
 # Input System generated files
 [Aa]ssets/[Ii]nput[Ss]ystem*/
 
-# Large binary assets (rhythm game audio/art)
-# Audio files
-*.wav
-*.aiff
-*.mp3
-*.ogg
-*.m4a
-*.aac
-*.flac
-*.wma
 
 # Art source files (keep final sprites/textures in repo)
 *.psd

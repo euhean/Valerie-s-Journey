@@ -1,5 +1,8 @@
 # Valerie's Journey
 
+[![Repo checks](https://github.com/euhean/Valerie-s-Journey/actions/workflows/repo-checks.yml/badge.svg)](https://github.com/euhean/Valerie-s-Journey/actions/workflows/repo-checks.yml)
+[![Unity build](https://github.com/euhean/Valerie-s-Journey/actions/workflows/unity-build.yml/badge.svg)](https://github.com/euhean/Valerie-s-Journey/actions/workflows/unity-build.yml)
+
 A 2D top-down action game where you fight to the beat. Attacks that land on the beat build a
 combo, and the fourth one in a row becomes a strong attack. Inspired by **Hotline Miami** for
 the action and **Hades** for the storytelling.
@@ -65,6 +68,17 @@ Tuning lives in the config assets under `Assets/Scripts/Configs/`: tempo window 
 `BeatConfig`, damage and attack window in `CombatConfig`, player movement in `MovementConfig`. The
 tempo itself (90 BPM in Test0) is set on the `TimeManager` object in the scene. Log categories are
 switched on and off in `Assets/Resources/DebugConfig`.
+
+## Checks
+
+GitHub Actions runs two workflows:
+
+- **Repo checks** (every push, under a minute, no Unity needed): every asset has its `.meta`
+  file and every `.meta` has its asset, no two files differ only in letter case, no leftover
+  merge-conflict markers, the package manifest is committed, and the build scene list is valid.
+  Run it locally with `python .github/scripts/check_repo.py`.
+- **Unity build** (pushes to `main` and pull requests): opens the project in Unity, compiles it
+  and builds the game for Windows. The build can be downloaded from the run's page for 14 days.
 
 ## Design decisions
 

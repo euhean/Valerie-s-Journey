@@ -1,0 +1,15 @@
+# Fast checks that need no Unity: missing or orphaned .meta files, file names that clash on
+# Windows/macOS, leftover merge-conflict markers, the package manifest and the build scene list.
+# The checks themselves live in .github/scripts/check_repo.py.
+name: Repo checks
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 .github/scripts/check_repo.py

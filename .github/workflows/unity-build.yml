@@ -1,0 +1,52 @@
+# Opens the project in Unity, compiles every script and builds the game for Windows.
+# A red run means the project doesn't compile or doesn't build. A green run leaves the
+# build as a downloadable artifact on the run's page.
+#
+# Needs three repository secrets (Settings → Secrets and variables → Actions):
+# UNITY_LICENSE (contents of Unity_lic.ulf), UNITY_EMAIL and UNITY_PASSWORD.
+# Set-up guide: https://game.ci/docs/github/activation
+name: Unity build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the build still running for the older one.
+concurrency:
+  group: unity-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the builder derives the version number from the git history
+
+      # Unity's Library folder is its import cache. Reusing it turns a 15-minute
+      # import into a few minutes on later runs.
+      - uses: actions/cache@v5
+        with:
+          path: Library
+          key: Library-StandaloneWindows64-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-StandaloneWindows64-
+
+      # Runs the Unity version from ProjectSettings/ProjectVersion.txt in a Docker image.
+      - uses: game-ci/unity-builder@v5
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: StandaloneWindows64
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ValeriesJourney-Windows
+          path: build/StandaloneWindows64
+          retention-days: 14
